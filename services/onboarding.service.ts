@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.rizon.app";
+// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.rizon.app";
 
 export type OnboardingStatus = {
   isNewUser: boolean;
@@ -18,27 +18,14 @@ export const OnboardingService = {
   /**
    * Check if the user has just completed initial onboarding
    */
-  async checkOnboardingStatus(): Promise<OnboardingStatus> {
+  async checkOnboardingStatus() {
     try {
-      // TODO: Replace with actual API endpoint
-      const response = await fetch(
-        `${API_BASE_URL}/api/user/onboarding-status`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            // Add authentication headers as needed
-            // 'Authorization': `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch onboarding status");
-      }
-
-      const data = await response.json();
-      return data;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // mock response
+      return {
+        isNewUser: true,
+        hasSeenInitialOnboarding: false,
+      };
     } catch (error) {
       return {
         isNewUser: false,
@@ -55,8 +42,6 @@ export const OnboardingService = {
       // simulate network latency
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      console.log("Mock feedback submitted:", payload);
-
       return true;
     } catch (error) {
       return false;
@@ -66,9 +51,10 @@ export const OnboardingService = {
   /**
    * Mark that user has seen the initial onboarding sheet
    */
-  async markOnboardingSheetSeen(): Promise<void> {
+  async markOnboardingSheetSeen() {
     try {
-      // TODO: Call API here
+      // simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (error) {
       console.debug("Development: Could not mark onboarding sheet as seen");
     }
