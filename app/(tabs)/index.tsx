@@ -7,46 +7,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export const OnboardingTestScreen = () => {
   const { setShowInitialSheet, onboardingStatus } = useOnboarding();
 
+  // Show onboarding status for debugging/demo
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Onboarding Test Screen</Text>
 
-        <Text style={styles.description}>
-          Use the buttons below to manually trigger each onboarding bottom sheet
-          for testing purposes.
-        </Text>
-
         {/* Onboarding Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Current Onboarding Status</Text>
-          {onboardingStatus ? (
-            <View style={styles.statusBox}>
-              <Text style={styles.text}>
-                Is New User: {onboardingStatus.isNewUser ? "Yes" : "No"}
-              </Text>
-              <Text style={styles.text}>
-                Has Seen Initial Onboarding:{" "}
-                {onboardingStatus.hasSeenInitialOnboarding ? "Yes" : "No"}
-              </Text>
-              {onboardingStatus.onboardingCompletedAt && (
-                <Text style={styles.text}>
-                  Completed At: {onboardingStatus.onboardingCompletedAt}
-                </Text>
-              )}
-            </View>
-          ) : (
-            <Text style={styles.text}>Loading status...</Text>
-          )}
+        <View style={styles.statusBox}>
+          <Text style={styles.statusTitle}>Current Onboarding Status:</Text>
+          <Text style={styles.statusText}>
+            {onboardingStatus
+              ? `isNewUser: ${onboardingStatus.isNewUser}\n` +
+                `hasSeenInitialOnboarding: ${onboardingStatus.hasSeenInitialOnboarding}\n`
+              : "No status loaded yet."}
+          </Text>
         </View>
 
         {/* Test Buttons */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Test Bottom Sheets</Text>
-
           <View style={styles.buttonContainer}>
             <RizonButton
-              title="Show Initial Sheet"
+              title="Show Initial Sheet (Manually)"
               onPress={() => setShowInitialSheet(true)}
               variant="primary"
             />
@@ -77,26 +59,6 @@ export const OnboardingTestScreen = () => {
             </Text>
           </View>
         </View>
-
-        {/* Notes */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <View style={styles.noteBox}>
-            <Text style={styles.note}>
-              • The Initial Sheet cannot be dismissed by tapping the backdrop
-            </Text>
-            <Text style={styles.note}>
-              • Feedback Sheet prevents race conditions during submission
-            </Text>
-            <Text style={styles.note}>
-              • Review Sheet opens the appropriate app store based on platform
-            </Text>
-            <Text style={styles.note}>
-              • In production, the Initial Sheet shows automatically after
-              onboarding
-            </Text>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -105,6 +67,22 @@ export const OnboardingTestScreen = () => {
 export default OnboardingTestScreen;
 
 const styles = StyleSheet.create({
+  statusBox: {
+    backgroundColor: "#f0f4ff",
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 20,
+  },
+  statusTitle: {
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 6,
+    color: "#003366",
+  },
+  statusText: {
+    fontSize: 15,
+    color: "#003366",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff",
@@ -140,12 +118,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#000",
   },
-  statusBox: {
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
+
   buttonContainer: {
     marginBottom: 12,
   },

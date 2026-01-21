@@ -20,12 +20,12 @@ type RizonBottomSheetProps = {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export function RizonBottomSheet({
+export const RizonBottomSheet = ({
   visible,
   onClose,
   children,
   enableBackdropDismiss = true,
-}: RizonBottomSheetProps) {
+}: RizonBottomSheetProps) => {
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -42,7 +42,7 @@ export function RizonBottomSheet({
         }),
         Animated.timing(backdropOpacity, {
           toValue: 1,
-          duration: 300,
+          duration: 200,
           useNativeDriver: true,
         }),
       ]).start();
@@ -96,7 +96,7 @@ export function RizonBottomSheet({
             styles.bottomSheetContainer,
             {
               transform: [{ translateY }],
-              paddingBottom: insets.bottom || 20,
+              paddingBottom: insets.bottom,
             },
           ]}
         >
@@ -116,7 +116,7 @@ export function RizonBottomSheet({
       </View>
     </Modal>
   );
-}
+};
 
 const styles = StyleSheet.create({
   modalContainer: {

@@ -18,7 +18,7 @@ type RizonButtonProps = {
   textStyle?: TextStyle;
 };
 
-export function RizonButton({
+export const RizonButton = ({
   title,
   onPress,
   variant = "primary",
@@ -26,7 +26,7 @@ export function RizonButton({
   loading = false,
   style,
   textStyle,
-}: RizonButtonProps) {
+}: RizonButtonProps) => {
   const buttonStyle = [
     styles.button,
     variant === "primary" && styles.primaryButton,
@@ -59,7 +59,7 @@ export function RizonButton({
       )}
     </TouchableOpacity>
   );
-}
+};
 
 const styles = StyleSheet.create({
   button: {

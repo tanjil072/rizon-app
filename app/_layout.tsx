@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
-import { OnboardingManager } from "@/components/onboarding/onboarding-manager";
+import { InitialOnboardingSheet } from "@/components/onboarding";
 import { OnboardingProvider } from "@/contexts/onboarding.context";
 
 export const unstable_settings = {
@@ -17,7 +17,7 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="auto" />
 
-      <OnboardingManager />
+      <InitialOnboardingSheet />
     </OnboardingProvider>
   );
 }

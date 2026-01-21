@@ -7,6 +7,7 @@ import React, {
   ReactNode,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -14,6 +15,9 @@ type OnboardingContextType = {
   showInitialSheet: boolean;
   setShowInitialSheet: (show: boolean) => void;
   onboardingStatus: OnboardingStatus | null;
+  setOnboardingStatus: React.Dispatch<
+    React.SetStateAction<OnboardingStatus | null>
+  >;
   checkOnboarding: () => Promise<void>;
 };
 
@@ -21,26 +25,23 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(
   undefined,
 );
 
-export function OnboardingProvider({ children }: { children: ReactNode }) {
+export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   const [showInitialSheet, setShowInitialSheet] = useState(false);
   const [onboardingStatus, setOnboardingStatus] =
     useState<OnboardingStatus | null>(null);
 
-  // Check onboarding status on mount
-  useEffect(() => {
-    checkOnboarding();
-  }, []);
+  const timeoutRef = useRef<number | null>(null);
 
   const checkOnboarding = async () => {
     try {
       const status = await OnboardingService.checkOnboardingStatus();
       setOnboardingStatus(status);
 
-      // Show initial sheet if user just completed onboarding
-      // This checks if the user is new and has just seen the initial onboarding
-      if (status.isNewUser && !status.hasSeenInitialOnboarding) {
-        // Small delay to allow any notifications to appear first
-        setTimeout(() => {
+      const shouldShowInitialSheet =
+        status.isNewUser && !status.hasSeenInitialOnboarding;
+
+      if (shouldShowInitialSheet) {
+        timeoutRef.current = setTimeout(() => {
           setShowInitialSheet(true);
         }, 500);
       }
@@ -49,23 +50,34 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    checkOnboarding();
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <OnboardingContext.Provider
       value={{
         showInitialSheet,
         setShowInitialSheet,
         onboardingStatus,
+        setOnboardingStatus,
         checkOnboarding,
       }}
     >
       {children}
     </OnboardingContext.Provider>
   );
-}
+};
 
 export function useOnboarding() {
   const context = useContext(OnboardingContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useOnboarding must be used within an OnboardingProvider");
   }
   return context;

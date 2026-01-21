@@ -14,13 +14,13 @@ type RizonInputProps = TextInputProps & {
   containerStyle?: ViewStyle;
 };
 
-export function RizonInput({
+export const RizonInput = ({
   label,
   error,
   containerStyle,
   style,
   ...textInputProps
-}: RizonInputProps) {
+}: RizonInputProps) => {
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
@@ -32,7 +32,7 @@ export function RizonInput({
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

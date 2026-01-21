@@ -1,8 +1,10 @@
 import { RizonButton } from "@/components/ui/rizon-button";
 import { RizonInput } from "@/components/ui/rizon-input";
+import { useOnboarding } from "@/contexts/onboarding.context";
 import { OnboardingService } from "@/services/onboarding.service";
 import React, { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { styles } from "./styles";
 
 type FeedbackSheetProps = {
   onClose: () => void;
@@ -12,16 +14,11 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Track if submission has started to prevent race conditions
   const isSubmittingRef = useRef(false);
+  const { setOnboardingStatus } = useOnboarding();
 
   const handleSendFeedback = async () => {
-    // Prevent race conditions
-    if (isSubmittingRef.current) {
-      return;
-    }
-
+    if (isSubmittingRef.current) return;
     if (!feedback.trim()) {
       setError("Please enter your feedback");
       return;
@@ -29,14 +26,16 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
     setError("");
     setLoading(true);
     isSubmittingRef.current = true;
-
     try {
-      // Submitting feedback to backend
       const success = await OnboardingService.submitFeedback({
         feedback: feedback.trim(),
       });
-
       if (success) {
+        setOnboardingStatus({
+          isNewUser: false,
+          hasSeenInitialOnboarding: true,
+          onboardingCompletedAt: new Date().toISOString(),
+        });
         setFeedback("");
         setLoading(false);
         isSubmittingRef.current = false;
@@ -56,11 +55,9 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Help us improve Rizon</Text>
-
       <Text style={styles.subtitle}>
         Tell us what didn&apos;t feel right, we read every message
       </Text>
-
       <View style={styles.inputContainer}>
         <RizonInput
           placeholder="Type your feedback here"
@@ -77,7 +74,6 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
           editable={!loading}
         />
       </View>
-
       <RizonButton
         title="Send feedback"
         onPress={handleSendFeedback}
@@ -89,35 +85,3 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "400",
-    color: "#000",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#868AA5",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  inputContainer: {
-    marginBottom: 24,
-  },
-  textArea: {
-    minHeight: 120,
-    textAlignVertical: "top",
-    paddingTop: 16,
-  },
-  sendButton: {
-    width: "100%",
-  },
-});

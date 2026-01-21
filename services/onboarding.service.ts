@@ -20,7 +20,7 @@ export const OnboardingService = {
    */
   async checkOnboardingStatus() {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       // mock response
       return {
         isNewUser: true,
@@ -40,7 +40,7 @@ export const OnboardingService = {
   async submitFeedback(payload: FeedbackPayload): Promise<boolean> {
     try {
       // simulate network latency
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       return true;
     } catch (error) {
@@ -54,7 +54,7 @@ export const OnboardingService = {
   async markOnboardingSheetSeen() {
     try {
       // simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
       console.debug("Development: Could not mark onboarding sheet as seen");
     }

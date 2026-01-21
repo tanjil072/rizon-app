@@ -1,4 +1,3 @@
-export { FeedbackSheet } from "./feedback-sheet";
-export { InitialOnboardingSheet } from "./initial-onboarding-sheet";
-export { OnboardingManager } from "./onboarding-manager";
-export { ReviewSheet } from "./review-sheet";
+export { FeedbackSheet } from "./FeedbackSheet/FeedbackSheet";
+export { InitialOnboardingSheet } from "./InitialOnboardingSheet/InitialOnboardingSheet";
+export { ReviewSheet } from "./ReviewSheet/ReviewSheet";
