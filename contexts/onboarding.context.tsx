@@ -2,6 +2,7 @@ import {
   OnboardingService,
   OnboardingStatus,
 } from "@/services/onboarding.service";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   ReactNode,
@@ -19,6 +20,7 @@ type OnboardingContextType = {
     React.SetStateAction<OnboardingStatus | null>
   >;
   checkOnboarding: () => Promise<void>;
+  triggerOnboardingAfterLogin: () => void;
 };
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(
@@ -31,16 +33,22 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     useState<OnboardingStatus | null>(null);
 
   const timeoutRef = useRef<number | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const checkOnboarding = async () => {
     try {
       const status = await OnboardingService.checkOnboardingStatus();
       setOnboardingStatus(status);
 
+      // Only show initial sheet if user is new AND hasn't seen onboarding
+      // AND the flag is explicitly set via triggerOnboardingAfterLogin
+      const hasSeenFlag = await AsyncStorage.getItem("onboardingTriggered");
       const shouldShowInitialSheet =
-        status.isNewUser && !status.hasSeenInitialOnboarding;
+        status.isNewUser && !status.hasSeenInitialOnboarding && hasSeenFlag;
 
       if (shouldShowInitialSheet) {
+        // Clear the flag and show sheet
+        await AsyncStorage.removeItem("onboardingTriggered");
         timeoutRef.current = setTimeout(() => {
           setShowInitialSheet(true);
         }, 500);
@@ -50,8 +58,31 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const triggerOnboardingAfterLogin = async () => {
+    try {
+      // Check if this is the first time user is logging in on this device
+      const hasCompletedOnboarding = await AsyncStorage.getItem(
+        "hasSeenInitialOnboarding",
+      );
+
+      if (!hasCompletedOnboarding) {
+        // Mark that onboarding should be shown
+        await AsyncStorage.setItem("onboardingTriggered", "true");
+        // Trigger the check
+        setTimeout(() => {
+          checkOnboarding();
+        }, 300);
+      }
+    } catch (error) {
+      console.error("Error triggering onboarding:", error);
+    }
+  };
+
   useEffect(() => {
-    checkOnboarding();
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      checkOnboarding();
+    }
 
     return () => {
       if (timeoutRef.current) {
@@ -68,6 +99,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         onboardingStatus,
         setOnboardingStatus,
         checkOnboarding,
+        triggerOnboardingAfterLogin,
       }}
     >
       {children}

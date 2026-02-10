@@ -1,7 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 
-// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.rizon.app";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080";
 
 export type OnboardingStatus = {
   isNewUser: boolean;
@@ -18,15 +19,22 @@ export const OnboardingService = {
   /**
    * Check if the user has just completed initial onboarding
    */
-  async checkOnboardingStatus() {
+  async checkOnboardingStatus(): Promise<OnboardingStatus> {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      // mock response
+      const hasSeenOnboarding = await AsyncStorage.getItem(
+        "hasSeenInitialOnboarding",
+      );
+
+      // In a real app, you would check this from the backend
+      // For now, we check local storage
+      const isNewUser = !hasSeenOnboarding;
+
       return {
-        isNewUser: true,
-        hasSeenInitialOnboarding: false,
+        isNewUser,
+        hasSeenInitialOnboarding: !!hasSeenOnboarding,
       };
     } catch (error) {
+      console.error("[ONBOARDING] Error checking status:", error);
       return {
         isNewUser: false,
         hasSeenInitialOnboarding: true,
@@ -39,11 +47,41 @@ export const OnboardingService = {
    */
   async submitFeedback(payload: FeedbackPayload): Promise<boolean> {
     try {
-      // simulate network latency
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Get session token from storage
+      let sessionToken: string | null = null;
+      try {
+        sessionToken = await AsyncStorage.getItem("sessionToken");
+      } catch {
+        // Try secure store if available
+        sessionToken = null;
+      }
 
+      if (!sessionToken) {
+        console.error("[ONBOARDING] No session token found");
+        return false;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/feedback/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({
+          content: payload.feedback,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("[ONBOARDING] Feedback submission failed:", error);
+        return false;
+      }
+
+      console.log("[ONBOARDING] Feedback submitted successfully");
       return true;
     } catch (error) {
+      console.error("[ONBOARDING] Error submitting feedback:", error);
       return false;
     }
   },

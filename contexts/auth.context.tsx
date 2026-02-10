@@ -1,0 +1,161 @@
+import { AuthService, AuthState } from "@/services/auth.service";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+type AuthContextType = AuthState & {
+  sendAuthLink: (email: string) => Promise<boolean>;
+  verifyAuthLink: (token: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    sessionToken: null,
+    isAuthenticated: false,
+    isLoading: true,
+    error: null,
+  });
+
+  const initializationRef = useRef(false);
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = await AuthService.getSessionToken();
+      if (token) {
+        setAuthState((prev) => ({
+          ...prev,
+          sessionToken: token,
+          isAuthenticated: true,
+          isLoading: false,
+        }));
+      } else {
+        setAuthState((prev) => ({
+          ...prev,
+          isAuthenticated: false,
+          isLoading: false,
+        }));
+      }
+    } catch (error) {
+      console.error("[AUTH_CONTEXT] Error checking auth status:", error);
+      setAuthState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: "Failed to check authentication status",
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (!initializationRef.current) {
+      initializationRef.current = true;
+      checkAuthStatus();
+    }
+  }, []);
+
+  const sendAuthLink = async (email: string): Promise<boolean> => {
+    setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
+    try {
+      const result = await AuthService.sendAuthLink(email);
+      if (!result.success) {
+        setAuthState((prev) => ({
+          ...prev,
+          error: result.error || "Failed to send auth link",
+          isLoading: false,
+        }));
+        return false;
+      }
+      setAuthState((prev) => ({ ...prev, isLoading: false }));
+      return true;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An error occurred";
+      setAuthState((prev) => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false,
+      }));
+      return false;
+    }
+  };
+
+  const verifyAuthLink = async (token: string): Promise<boolean> => {
+    setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
+    try {
+      const result = await AuthService.verifyAuthLink(token);
+      if (!result.success) {
+        setAuthState((prev) => ({
+          ...prev,
+          error: result.error || "Failed to verify token",
+          isLoading: false,
+        }));
+        return false;
+      }
+
+      setAuthState((prev) => ({
+        ...prev,
+        user: result.user || null,
+        sessionToken: result.sessionToken || null,
+        isAuthenticated: !!result.sessionToken,
+        isLoading: false,
+      }));
+
+      return true;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An error occurred";
+      setAuthState((prev) => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false,
+      }));
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await AuthService.clearSession();
+      setAuthState({
+        user: null,
+        sessionToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      });
+    } catch (error) {
+      console.error("[AUTH_CONTEXT] Error during logout:", error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        ...authState,
+        sendAuthLink,
+        verifyAuthLink,
+        logout,
+        checkAuthStatus,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}

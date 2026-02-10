@@ -2,6 +2,7 @@ import { RizonButton } from "@/components/ui/rizon-button";
 import { RizonInput } from "@/components/ui/rizon-input";
 import { useOnboarding } from "@/contexts/onboarding.context";
 import { OnboardingService } from "@/services/onboarding.service";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { styles } from "./styles";
@@ -18,34 +19,58 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
   const { setOnboardingStatus } = useOnboarding();
 
   const handleSendFeedback = async () => {
-    if (isSubmittingRef.current) return;
+    // Prevent double submission
+    if (isSubmittingRef.current) {
+      console.log("[FEEDBACK] Submission already in progress");
+      return;
+    }
+
     if (!feedback.trim()) {
       setError("Please enter your feedback");
       return;
     }
+
     setError("");
     setLoading(true);
     isSubmittingRef.current = true;
+
     try {
+      console.log("[FEEDBACK] Submitting feedback...");
+
       const success = await OnboardingService.submitFeedback({
         feedback: feedback.trim(),
       });
+
       if (success) {
+        console.log("[FEEDBACK] Feedback submitted successfully");
+
+        // Mark onboarding as completed
+        await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+        await AsyncStorage.removeItem("isNewLogin");
+
         setOnboardingStatus({
           isNewUser: false,
           hasSeenInitialOnboarding: true,
           onboardingCompletedAt: new Date().toISOString(),
         });
+
+        // Clear feedback and close sheet after a short delay
         setFeedback("");
         setLoading(false);
         isSubmittingRef.current = false;
-        onClose();
+
+        // Wait a bit before closing to show success
+        setTimeout(() => {
+          onClose();
+        }, 300);
       } else {
+        console.error("[FEEDBACK] Feedback submission failed");
         setError("Failed to send feedback. Please try again.");
         setLoading(false);
         isSubmittingRef.current = false;
       }
     } catch (error) {
+      console.error("[FEEDBACK] Error:", error);
       setError("An error occurred. Please try again.");
       setLoading(false);
       isSubmittingRef.current = false;
@@ -75,7 +100,7 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
         />
       </View>
       <RizonButton
-        title="Send feedback"
+        title={loading ? "Sending..." : "Send feedback"}
         onPress={handleSendFeedback}
         variant="primary"
         loading={loading}
