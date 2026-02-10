@@ -1,17 +1,40 @@
 import { RizonButton } from "@/components/ui/rizon-button";
+import { useAuth } from "@/contexts/auth.context";
 import { useOnboarding } from "@/contexts/onboarding.context";
+import { useRouter } from "expo-router";
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export const OnboardingTestScreen = () => {
   const { setShowInitialSheet, onboardingStatus } = useOnboarding();
+  const { logout, user } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/login");
+  };
 
   // Show onboarding status for debugging/demo
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Onboarding Test Screen</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Rizon App</Text>
+          {user && (
+            <Text style={styles.userEmail}>Logged in as: {user.email}</Text>
+          )}
+        </View>
+
+        {/* Logout Button */}
+        <View style={styles.logoutSection}>
+          <RizonButton
+            title="Logout"
+            onPress={handleLogout}
+            variant="secondary"
+          />
+        </View>
 
         {/* Onboarding Status */}
         <View style={styles.statusBox}>
@@ -28,7 +51,7 @@ export const OnboardingTestScreen = () => {
         <View style={styles.section}>
           <View style={styles.buttonContainer}>
             <RizonButton
-              title="Show Initial Sheet (Manually)"
+              title="Show Initial Sheet (Test)"
               onPress={() => setShowInitialSheet(true)}
               variant="primary"
             />
@@ -67,6 +90,20 @@ export const OnboardingTestScreen = () => {
 export default OnboardingTestScreen;
 
 const styles = StyleSheet.create({
+  header: {
+    marginBottom: 20,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 8,
+  },
+  logoutSection: {
+    marginBottom: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
   statusBox: {
     backgroundColor: "#f0f4ff",
     borderRadius: 10,

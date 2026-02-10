@@ -1,6 +1,7 @@
 import { RizonButton } from "@/components/ui/rizon-button";
 import { RizonInput } from "@/components/ui/rizon-input";
 import { useAuth } from "@/contexts/auth.context";
+import { useOnboarding } from "@/contexts/onboarding.context";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -31,6 +32,7 @@ export default function LoginScreen() {
     linkSentSuccessfully,
     clearDebugInfo,
   } = useAuth();
+  const { triggerOnboardingAfterLogin } = useOnboarding();
 
   const handleSendLink = async () => {
     setError("");
@@ -66,7 +68,10 @@ export default function LoginScreen() {
     try {
       const success = await verifyAuthLink(verifyToken);
       if (success) {
-        // Auth context will handle navigation
+        console.log("[LOGIN] Token verified, triggering onboarding");
+        // Trigger onboarding for first-time users
+        triggerOnboardingAfterLogin();
+        // Navigate to home
         router.replace("/(tabs)");
       } else {
         setError("Invalid token. Please try again.");
