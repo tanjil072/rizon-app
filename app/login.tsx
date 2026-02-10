@@ -21,9 +21,16 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
+  const [verifyToken, setVerifyToken] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const router = useRouter();
-  const { sendAuthLink } = useAuth();
+  const {
+    sendAuthLink,
+    verifyAuthLink,
+    debugToken,
+    linkSentSuccessfully,
+    clearDebugInfo,
+  } = useAuth();
 
   const handleSendLink = async () => {
     setError("");
@@ -40,17 +47,35 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const success = await sendAuthLink(email);
-      if (success) {
-        setLinkSent(true);
-      } else {
-        setError("Failed to send auth link. Please try again.");
-      }
+      await sendAuthLink(email);
     } catch (err) {
       setError("An error occurred. Please try again.");
-      console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyToken = async () => {
+    if (!verifyToken.trim()) {
+      setError("Please enter a token");
+      return;
+    }
+
+    setVerifyLoading(true);
+    setError("");
+    try {
+      const success = await verifyAuthLink(verifyToken);
+      if (success) {
+        // Auth context will handle navigation
+        router.replace("/(tabs)");
+      } else {
+        setError("Invalid token. Please try again.");
+      }
+    } catch (err) {
+      setError("Failed to verify token. Please try again.");
+      console.error(err);
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -66,12 +91,12 @@ export default function LoginScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Welcome to Rizon</Text>
           <Text style={styles.subtitle}>
-            {linkSent
+            {linkSentSuccessfully
               ? "Check your email for the login link"
               : "Enter your email to get started"}
           </Text>
 
-          {!linkSent ? (
+          {!linkSentSuccessfully ? (
             <>
               <View style={styles.formContainer}>
                 <RizonInput
@@ -113,11 +138,67 @@ export default function LoginScreen() {
                 app automatically.
               </Text>
 
+              {debugToken ? (
+                <View style={styles.debugContainer}>
+                  <Text style={styles.debugTitle}>
+                    🔧 Development Mode - TOKEN AVAILABLE
+                  </Text>
+                  <Text style={styles.debugLabel}>
+                    Token (check console for link):
+                  </Text>
+                  <Text style={styles.debugToken} selectable>
+                    {debugToken}
+                  </Text>
+                  <Text style={styles.debugHint}>
+                    Copy and paste token below to verify:
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.debugContainer}>
+                  <Text style={styles.debugTitle}>
+                    🔧 Development Mode - NO TOKEN
+                  </Text>
+                  <Text style={styles.debugWarning}>
+                    No token received from backend. Check your console logs or
+                    backend response.
+                  </Text>
+                  <Text style={styles.debugHint}>
+                    If you have a token from backend logs, paste it below:
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.tokenInputContainer}>
+                <RizonInput
+                  label="Test Token (Development)"
+                  placeholder="Paste token here"
+                  value={verifyToken}
+                  onChangeText={(text) => {
+                    setVerifyToken(text);
+                    if (error) setError("");
+                  }}
+                  autoCapitalize="none"
+                  editable={!verifyLoading}
+                  error={error}
+                  multiline
+                />
+                <RizonButton
+                  title={verifyLoading ? "Verifying..." : "Verify Token"}
+                  onPress={handleVerifyToken}
+                  variant="primary"
+                  loading={verifyLoading}
+                  disabled={verifyLoading || !verifyToken.trim()}
+                  style={styles.verifyButton}
+                />
+              </View>
+
               <RizonButton
                 title="Didn't receive email? Try again"
                 onPress={() => {
-                  setLinkSent(false);
                   setEmail("");
+                  setVerifyToken("");
+                  setError("");
+                  clearDebugInfo();
                 }}
                 variant="secondary"
                 style={styles.tryAgainButton}
@@ -186,5 +267,52 @@ const styles = StyleSheet.create({
   },
   tryAgainButton: {
     marginTop: 16,
+  },
+  debugContainer: {
+    backgroundColor: "#0ea5e9",
+    borderWidth: 3,
+    borderColor: "#0369a1",
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 16,
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  debugLabel: {
+    fontSize: 13,
+    color: "#fff",
+    marginBottom: 4,
+    fontWeight: "600",
+  },
+  debugToken: {
+    fontSize: 12,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    color: "#000",
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 4,
+    marginBottom: 8,
+    fontWeight: "600",
+  },
+  debugHint: {
+    fontSize: 12,
+    color: "#fff",
+    fontStyle: "italic",
+  },
+  debugWarning: {
+    fontSize: 13,
+    color: "#fff",
+    marginBottom: 8,
+    fontWeight: "600",
+  },
+  tokenInputContainer: {
+    marginVertical: 16,
+  },
+  verifyButton: {
+    marginTop: 12,
   },
 });

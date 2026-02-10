@@ -54,6 +54,7 @@ function RootLayoutContent() {
     }
 
     const inAuthGroup = segments[0] === "(auth)";
+    const onLoginScreen = segments[0] === "login" || segments.length === 0;
     console.log(
       "[ROOT_LAYOUT] Auth state - isAuthenticated:",
       isAuthenticated,
@@ -61,14 +62,18 @@ function RootLayoutContent() {
       isLoading,
       "InAuthGroup:",
       inAuthGroup,
+      "OnLoginScreen:",
+      onLoginScreen,
+      "Segments:",
+      segments,
     );
 
     if (isLoading) {
       return;
     }
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to login
+    if (!isAuthenticated && !inAuthGroup && !onLoginScreen) {
+      // Redirect to login only if not already there
       console.log("[ROOT_LAYOUT] Redirecting to login");
       router.replace("/login");
     }

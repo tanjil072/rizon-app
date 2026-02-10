@@ -9,10 +9,16 @@ import React, {
 } from "react";
 
 type AuthContextType = AuthState & {
-  sendAuthLink: (email: string) => Promise<boolean>;
+  sendAuthLink: (
+    email: string,
+  ) => Promise<{ success: boolean; token?: string; link?: string }>;
   verifyAuthLink: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  debugToken: string | null;
+  debugLink: string | null;
+  linkSentSuccessfully: boolean;
+  clearDebugInfo: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +31,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isLoading: true,
     error: null,
   });
+
+  const [debugToken, setDebugToken] = useState<string | null>(null);
+  const [debugLink, setDebugLink] = useState<string | null>(null);
+  const [linkSentSuccessfully, setLinkSentSuccessfully] = useState(false);
 
   const initializationRef = useRef(false);
 
@@ -62,7 +72,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const sendAuthLink = async (email: string): Promise<boolean> => {
+  const sendAuthLink = async (
+    email: string,
+  ): Promise<{ success: boolean; token?: string; link?: string }> => {
     setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
     try {
       const result = await AuthService.sendAuthLink(email);
@@ -72,10 +84,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           error: result.error || "Failed to send auth link",
           isLoading: false,
         }));
-        return false;
+        return { success: false };
       }
+
+      // Store debug info globally
+      if (result.token) {
+        console.log(
+          "[AUTH_CONTEXT] 🟢 Setting global debugToken:",
+          result.token,
+        );
+        setDebugToken(result.token);
+        setDebugLink(result.link || null);
+      }
+
+      console.log("[AUTH_CONTEXT] 🟢 Setting linkSentSuccessfully to true");
+      setLinkSentSuccessfully(true);
+
       setAuthState((prev) => ({ ...prev, isLoading: false }));
-      return true;
+      return { success: true, token: result.token, link: result.link };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An error occurred";
@@ -84,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         error: errorMessage,
         isLoading: false,
       }));
-      return false;
+      return { success: false };
     }
   };
 
@@ -132,9 +158,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading: false,
         error: null,
       });
+      setDebugToken(null);
+      setDebugLink(null);
     } catch (error) {
       console.error("[AUTH_CONTEXT] Error during logout:", error);
     }
+  };
+
+  const clearDebugInfo = () => {
+    console.log("[AUTH_CONTEXT] Clearing debug info");
+    setDebugToken(null);
+    setDebugLink(null);
+    setLinkSentSuccessfully(false);
   };
 
   return (
@@ -145,6 +180,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         verifyAuthLink,
         logout,
         checkAuthStatus,
+        debugToken,
+        debugLink,
+        linkSentSuccessfully,
+        clearDebugInfo,
       }}
     >
       {children}

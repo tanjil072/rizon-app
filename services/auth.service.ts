@@ -21,9 +21,12 @@ class AuthServiceImpl {
   /**
    * Send auth link to email
    */
-  async sendAuthLink(
-    email: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  async sendAuthLink(email: string): Promise<{
+    success: boolean;
+    error?: string;
+    token?: string;
+    link?: string;
+  }> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/send-link`, {
         method: "POST",
@@ -45,7 +48,12 @@ class AuthServiceImpl {
       const data = await response.json();
       console.log("[AUTH] Auth link response:", data);
 
-      return { success: true };
+      // Return token and link for development/testing
+      return {
+        success: true,
+        token: data.token,
+        link: data.link,
+      };
     } catch (error) {
       console.error("[AUTH] Error sending auth link:", error);
       return { success: false, error: "Network error. Please try again." };
