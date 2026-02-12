@@ -10,7 +10,7 @@ import {
   OnboardingProvider,
   useOnboarding,
 } from "@/contexts/onboarding.context";
-import { linking, useDeepLinkingHandler } from "@/utils/deep-linking";
+import { useDeepLinkingHandler } from "@/utils/deep-linking";
 import { ActivityIndicator, View } from "react-native";
 
 export const unstable_settings = {
@@ -30,18 +30,27 @@ function RootLayoutContent() {
   // Handle deep links with auth tokens
   useDeepLinkingHandler(async (token: string) => {
     console.log("[ROOT_LAYOUT] Processing auth token:", token);
-    const success = await verifyAuthLink(token);
+    try {
+      console.log("[ROOT_LAYOUT] Calling verifyAuthLink...");
+      const success = await verifyAuthLink(token);
+      console.log("[ROOT_LAYOUT] verifyAuthLink result:", success);
 
-    if (success) {
-      console.log("[ROOT_LAYOUT] Auth successful, triggering onboarding");
-      // Mark this as new user login to show onboarding
-      await AsyncStorage.setItem("isNewLogin", "true");
-      triggerOnboardingAfterLogin();
-      // Navigate to home
-      router.replace("/(tabs)");
-    } else {
-      console.error("[ROOT_LAYOUT] Auth verification failed");
-      // Navigate back to login
+      if (success) {
+        console.log("[ROOT_LAYOUT] Auth successful, triggering onboarding");
+        // Mark this as new user login to show onboarding
+        await AsyncStorage.setItem("isNewLogin", "true");
+        triggerOnboardingAfterLogin();
+        // Navigate to home
+        console.log("[ROOT_LAYOUT] Navigating to home...");
+        router.replace("/(tabs)");
+      } else {
+        console.error("[ROOT_LAYOUT] Auth verification failed");
+        // Navigate back to login
+        console.log("[ROOT_LAYOUT] Navigating to login...");
+        router.replace("/login");
+      }
+    } catch (error) {
+      console.error("[ROOT_LAYOUT] Error in deep link handler:", error);
       router.replace("/login");
     }
   });
@@ -76,7 +85,7 @@ function RootLayoutContent() {
 
   return (
     <>
-      <Stack linking={linking} fallback={<ActivityIndicator />}>
+      <Stack>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>

@@ -2,7 +2,6 @@ import { RizonButton } from "@/components/ui/rizon-button";
 import { RizonInput } from "@/components/ui/rizon-input";
 import { useAuth } from "@/contexts/auth.context";
 import { useOnboarding } from "@/contexts/onboarding.context";
-import { simulateDeepLink } from "@/utils/deep-linking";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -101,23 +100,6 @@ export default function LoginScreen() {
               ? "Check your email for the login link"
               : "Enter your email to get started"}
           </Text>
-
-          <RizonButton
-            variant="primary"
-            style={styles.submitButton}
-            title="Test Deep Link (abc123)"
-            onPress={async () => {
-              await simulateDeepLink(
-                "rizon://auth?token=abc123",
-                verifyAuthLink,
-              );
-              // After successful verification, navigate
-              setTimeout(() => {
-                triggerOnboardingAfterLogin();
-                router.replace("/(tabs)");
-              }, 500);
-            }}
-          />
 
           {!linkSentSuccessfully ? (
             <>

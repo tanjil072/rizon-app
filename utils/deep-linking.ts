@@ -5,15 +5,9 @@ import { Platform } from "react-native";
 const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
 
 export const linking = {
-  prefixes: [prefix, "rizon://"],
+  prefixes: ["rizon://", "https://app.rizon.app"],
   config: {
     screens: {
-      login: {
-        path: "auth",
-        parse: {
-          token: String,
-        },
-      },
       "(tabs)": {
         screens: {
           index: "",
@@ -40,17 +34,19 @@ export function useDeepLinkingHandler(
 
       if (token) {
         console.log("[DEEP_LINKING] Extracted token:", token);
-        // Give React time to settle before calling the callback
-        setTimeout(async () => {
-          if (isMounted) {
-            try {
-              await Promise.resolve(onAuthTokenReceived(token));
+        console.log("[DEEP_LINKING] Calling auth callback immediately...");
+        // Call callback immediately without setTimeout to avoid unmounting issues
+        try {
+          Promise.resolve(onAuthTokenReceived(token))
+            .then(() => {
               console.log("[DEEP_LINKING] Token processed successfully");
-            } catch (error) {
+            })
+            .catch((error) => {
               console.error("[DEEP_LINKING] Error processing token:", error);
-            }
-          }
-        }, 100);
+            });
+        } catch (error) {
+          console.error("[DEEP_LINKING] Error calling callback:", error);
+        }
       } else {
         console.warn("[DEEP_LINKING] No token found in URL:", url);
       }
