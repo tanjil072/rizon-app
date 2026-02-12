@@ -63,8 +63,6 @@ function RootLayoutContent() {
     }
 
     if (!isAuthenticated && !onAuthFlowScreen) {
-      // Redirect to login only if not already there or on auth screen
-      console.log("[ROOT_LAYOUT] Redirecting to login");
       router.replace("/login");
     }
   }, [isAuthenticated, isLoading, segments, isNavigationReady, router]);

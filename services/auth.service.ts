@@ -71,6 +71,12 @@ class AuthServiceImpl {
     error?: string;
   }> {
     try {
+      console.log(
+        "[AUTH_SERVICE] Sending verification request to:",
+        `${API_BASE_URL}/api/auth/verify`,
+      );
+      console.log("[AUTH_SERVICE] Token:", token);
+
       const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
         method: "POST",
         headers: {
@@ -79,16 +85,30 @@ class AuthServiceImpl {
         body: JSON.stringify({ token }),
       });
 
+      console.log("[AUTH_SERVICE] Response status:", response.status);
+
       if (!response.ok) {
         const error = await response.json();
+        console.error("[AUTH_SERVICE] Verification failed:", error);
         return { success: false, error: error.message || "Invalid token" };
       }
 
       const data = await response.json();
+      console.log("[AUTH_SERVICE] Verification successful:", data);
 
       // Save session token securely
       if (data.session_token) {
         await this.saveSessionToken(data.session_token);
+      }
+
+      // Save user data
+      if (data.user) {
+        await this.saveUserData(data.user);
+      }
+
+      // Save isNewUser flag
+      if (data.is_new_user !== undefined) {
+        await this.saveIsNewUserFlag(data.is_new_user);
       }
 
       return {
@@ -98,7 +118,7 @@ class AuthServiceImpl {
         isNewUser: data.is_new_user,
       };
     } catch (error) {
-      console.error("[AUTH] Error verifying auth link:", error);
+      console.error("[AUTH_SERVICE] Error verifying auth link:", error);
       return { success: false, error: "Failed to verify token" };
     }
   }
@@ -159,9 +179,153 @@ class AuthServiceImpl {
       } catch {
         await AsyncStorage.removeItem("sessionToken");
       }
+      await AsyncStorage.removeItem("userData");
+      await AsyncStorage.removeItem("isNewUser");
       console.log("[AUTH] Session cleared");
     } catch (error) {
       console.error("[AUTH] Error clearing session:", error);
+    }
+  }
+
+  /**
+   * Save user data alongside session token
+   */
+  async saveUserData(user: AuthUser): Promise<void> {
+    try {
+      await AsyncStorage.setItem("userData", JSON.stringify(user));
+      console.log("[AUTH] User data saved", user.email);
+    } catch (error) {
+      console.error("[AUTH] Error saving user data:", error);
+    }
+  }
+
+  /**
+   * Save isNewUser flag from auth verification
+   */
+  async saveIsNewUserFlag(isNewUser: boolean): Promise<void> {
+    try {
+      await AsyncStorage.setItem("isNewUser", isNewUser.toString());
+      console.log("[AUTH] New user flag saved:", isNewUser);
+    } catch (error) {
+      console.error("[AUTH] Error saving isNewUser flag:", error);
+    }
+  }
+
+  /**
+   * Get isNewUser flag
+   */
+  async getIsNewUserFlag(): Promise<boolean | null> {
+    try {
+      const flag = await AsyncStorage.getItem("isNewUser");
+      if (flag !== null) {
+        console.log("[AUTH] New user flag retrieved:", flag);
+        return flag === "true";
+      }
+      return null;
+    } catch (error) {
+      console.error("[AUTH] Error getting isNewUser flag:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get saved user data
+   */
+  async getUserData(): Promise<AuthUser | null> {
+    try {
+      const userData = await AsyncStorage.getItem("userData");
+      if (userData) {
+        console.log("[AUTH] User data retrieved from storage");
+        return JSON.parse(userData);
+      }
+      return null;
+    } catch (error) {
+      console.error("[AUTH] Error getting user data:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get user from session token
+   */
+  async getUserFromSession(sessionToken: string): Promise<AuthUser | null> {
+    try {
+      if (!sessionToken) {
+        console.error("[AUTH_SERVICE] No session token provided");
+        return null;
+      }
+
+      console.log(
+        "[AUTH_SERVICE] Fetching user from session with token:",
+        sessionToken?.substring(0, 10) + "...",
+      );
+      console.log("[AUTH_SERVICE] API URL:", API_BASE_URL);
+
+      const url = `${API_BASE_URL}/api/auth/me`;
+      console.log("[AUTH_SERVICE] Request URL:", url);
+
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log("[AUTH_SERVICE] API Response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          "[AUTH_SERVICE] Failed to fetch user:",
+          response.status,
+          errorText,
+        );
+        return null;
+      }
+
+      const data = await response.json();
+      console.log(
+        "[AUTH_SERVICE] Full response:",
+        JSON.stringify(data, null, 2),
+      );
+      console.log("[AUTH_SERVICE] User data:", data.user);
+
+      return data.user || null;
+    } catch (error) {
+      if (error instanceof TypeError) {
+        const message = (error as any).message || "";
+        if (message.includes("Network request failed")) {
+          console.error("[AUTH_SERVICE] Network connection failed:", {
+            message: error.message,
+            apiUrl: API_BASE_URL,
+            suggestion: "Check if backend is running and IP address is correct",
+          });
+        } else if (message.includes("Aborted")) {
+          console.error("[AUTH_SERVICE] Request timeout (10s):", API_BASE_URL);
+        } else {
+          console.error("[AUTH_SERVICE] Network error:", {
+            message: error.message,
+            cause: (error as any).cause,
+            stack: error.stack,
+          });
+        }
+      } else if (error instanceof Error) {
+        console.error("[AUTH_SERVICE] Error fetching user from session:", {
+          message: error.message,
+          stack: error.stack,
+        });
+      } else {
+        console.error("[AUTH_SERVICE] Unknown error fetching user:", error);
+      }
+      return null;
     }
   }
 

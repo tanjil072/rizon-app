@@ -24,6 +24,7 @@ export function useDeepLinkingHandler(
   onAuthTokenReceived: (token: string) => Promise<void> | void,
 ) {
   const hasProcessedInitialUrl = useRef(false);
+  const processedTokens = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let isMounted = true;
@@ -38,8 +39,21 @@ export function useDeepLinkingHandler(
       const token = extractTokenFromURL(url);
 
       if (token) {
+        // Check if we've already processed this token
+        if (processedTokens.current.has(token)) {
+          console.log(
+            "[DEEP_LINKING] Token already processed, skipping:",
+            token,
+          );
+          return;
+        }
+
         console.log("[DEEP_LINKING] Extracted token:", token);
         console.log("[DEEP_LINKING] Calling auth callback immediately...");
+
+        // Mark token as being processed
+        processedTokens.current.add(token);
+
         // Call callback immediately without setTimeout to avoid unmounting issues
         try {
           Promise.resolve(onAuthTokenReceived(token))
@@ -48,9 +62,13 @@ export function useDeepLinkingHandler(
             })
             .catch((error) => {
               console.error("[DEEP_LINKING] Error processing token:", error);
+              // Remove from processed set on error so it can be retried
+              processedTokens.current.delete(token);
             });
         } catch (error) {
           console.error("[DEEP_LINKING] Error calling callback:", error);
+          // Remove from processed set on error so it can be retried
+          processedTokens.current.delete(token);
         }
       } else {
         console.warn("[DEEP_LINKING] No token found in URL:", url);

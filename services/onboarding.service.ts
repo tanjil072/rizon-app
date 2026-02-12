@@ -26,9 +26,29 @@ export const OnboardingService = {
         "hasSeenInitialOnboarding",
       );
 
-      // In a real app, you would check this from the backend
-      // For now, we check local storage
-      const isNewUser = !hasSeenOnboarding;
+      // Check if we have the isNewUser flag from auth
+      let isNewUser = false;
+      try {
+        const isNewUserFlag = await AsyncStorage.getItem("isNewUser");
+        if (isNewUserFlag !== null) {
+          // Use the flag from auth verification (more reliable than checking AsyncStorage)
+          isNewUser = isNewUserFlag === "true";
+          console.log(
+            "[ONBOARDING] Using isNewUser from auth flag:",
+            isNewUser,
+          );
+        } else {
+          // Fall back to checking if hasSeenOnboarding is set
+          isNewUser = !hasSeenOnboarding;
+          console.log(
+            "[ONBOARDING] Fallback - isNewUser based on hasSeenOnboarding:",
+            isNewUser,
+          );
+        }
+      } catch (error) {
+        // If there's any error reading the flag, fall back to the old logic
+        isNewUser = !hasSeenOnboarding;
+      }
 
       return {
         isNewUser,

@@ -42,8 +42,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const token = await AuthService.getSessionToken();
       if (token) {
+        console.log("[AUTH_CONTEXT] Found session token, fetching user...");
+        // Try to fetch user data from backend
+        let user = await AuthService.getUserFromSession(token);
+
+        // If backend fetch fails, try to use cached user data
+        if (!user) {
+          console.log(
+            "[AUTH_CONTEXT] Backend fetch failed, trying cached user data",
+          );
+          user = await AuthService.getUserData();
+        }
+
         setAuthState((prev) => ({
           ...prev,
+          user: user || null,
           sessionToken: token,
           isAuthenticated: true,
           isLoading: false,
@@ -118,16 +131,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyAuthLink = async (token: string): Promise<boolean> => {
     setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
     try {
+      console.log("[AUTH_CONTEXT] Verifying token with backend...");
       const result = await AuthService.verifyAuthLink(token);
+      console.log("[AUTH_CONTEXT] Backend response:", result);
+
       if (!result.success) {
+        const errorMsg = result.error || "Failed to verify token";
+        console.error("[AUTH_CONTEXT] Verification failed:", errorMsg);
         setAuthState((prev) => ({
           ...prev,
-          error: result.error || "Failed to verify token",
+          error: errorMsg,
           isLoading: false,
         }));
         return false;
       }
 
+      console.log("[AUTH_CONTEXT] Verification successful!");
       setAuthState((prev) => ({
         ...prev,
         user: result.user || null,
@@ -140,6 +159,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An error occurred";
+      console.error(
+        "[AUTH_CONTEXT] Exception during verification:",
+        errorMessage,
+      );
       setAuthState((prev) => ({
         ...prev,
         error: errorMessage,
