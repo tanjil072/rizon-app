@@ -32,7 +32,7 @@ export const OnboardingTestScreen = () => {
           <RizonButton
             title="Logout"
             onPress={handleLogout}
-            variant="secondary"
+            variant="outline"
           />
         </View>
 

@@ -75,7 +75,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const sendAuthLink = async (
     email: string,
   ): Promise<{ success: boolean; token?: string; link?: string }> => {
-    setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
+    // setAuthState((prev) => ({ ...prev, error: null, isLoading: true }));
+
     try {
       const result = await AuthService.sendAuthLink(email);
       if (!result.success) {
