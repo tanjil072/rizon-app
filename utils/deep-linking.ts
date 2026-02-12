@@ -1,13 +1,16 @@
 import * as Linking from "expo-linking";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
 const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
 
+// Simple linking config - just prevent "unmatched route" errors
+// The useDeepLinkingHandler does all the real work
 export const linking = {
   prefixes: ["rizon://", "https://app.rizon.app"],
   config: {
     screens: {
+      login: "*", // Match any unmatched path to login screen
       "(tabs)": {
         screens: {
           index: "",
@@ -20,6 +23,8 @@ export const linking = {
 export function useDeepLinkingHandler(
   onAuthTokenReceived: (token: string) => Promise<void> | void,
 ) {
+  const hasProcessedInitialUrl = useRef(false);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -56,17 +61,26 @@ export function useDeepLinkingHandler(
     const subscription = Linking.addEventListener("url", handleDeepLink);
 
     // Check for initial URL (when app is launched from a deep link)
+    // Only do this once to prevent infinite loops
     const checkInitialURL = async () => {
+      if (hasProcessedInitialUrl.current) {
+        console.log("[DEEP_LINKING] Initial URL already processed, skipping");
+        return;
+      }
+
       try {
         const url = await Linking.getInitialURL();
         if (url != null) {
           console.log("[DEEP_LINKING] Initial URL on app launch:", url);
+          hasProcessedInitialUrl.current = true;
           await handleDeepLink({ url });
         } else {
           console.log("[DEEP_LINKING] No initial URL found");
+          hasProcessedInitialUrl.current = true;
         }
       } catch (error) {
         console.error("[DEEP_LINKING] Error checking initial URL:", error);
+        hasProcessedInitialUrl.current = true;
       }
     };
 

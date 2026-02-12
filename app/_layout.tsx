@@ -31,26 +31,18 @@ function RootLayoutContent() {
   useDeepLinkingHandler(async (token: string) => {
     console.log("[ROOT_LAYOUT] Processing auth token:", token);
     try {
-      console.log("[ROOT_LAYOUT] Calling verifyAuthLink...");
       const success = await verifyAuthLink(token);
-      console.log("[ROOT_LAYOUT] verifyAuthLink result:", success);
+      console.log("[ROOT_LAYOUT] Verification result:", success);
 
       if (success) {
-        console.log("[ROOT_LAYOUT] Auth successful, triggering onboarding");
-        // Mark this as new user login to show onboarding
         await AsyncStorage.setItem("isNewLogin", "true");
         triggerOnboardingAfterLogin();
-        // Navigate to home
-        console.log("[ROOT_LAYOUT] Navigating to home...");
         router.replace("/(tabs)");
       } else {
-        console.error("[ROOT_LAYOUT] Auth verification failed");
-        // Navigate back to login
-        console.log("[ROOT_LAYOUT] Navigating to login...");
         router.replace("/login");
       }
     } catch (error) {
-      console.error("[ROOT_LAYOUT] Error in deep link handler:", error);
+      console.error("[ROOT_LAYOUT] Error:", error);
       router.replace("/login");
     }
   });
@@ -62,14 +54,16 @@ function RootLayoutContent() {
       return;
     }
 
-    const onLoginScreen = segments[0] === "login" || !segments.length;
+    const currentScreen = segments[0];
+    const onAuthFlowScreen =
+      currentScreen === "login" || currentScreen === "auth" || !segments.length;
 
     if (isLoading) {
       return;
     }
 
-    if (!isAuthenticated && !onLoginScreen) {
-      // Redirect to login only if not already there
+    if (!isAuthenticated && !onAuthFlowScreen) {
+      // Redirect to login only if not already there or on auth screen
       console.log("[ROOT_LAYOUT] Redirecting to login");
       router.replace("/login");
     }
@@ -85,9 +79,14 @@ function RootLayoutContent() {
 
   return (
     <>
-      <Stack>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
       <StatusBar style="auto" />
       {isAuthenticated && <InitialOnboardingSheet />}
