@@ -1,14 +1,19 @@
 import * as Linking from "expo-linking";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
 
 export const linking = {
-  prefixes: [prefix, "rizon://", "rizonapp://"],
+  prefixes: [prefix, "rizon://"],
   config: {
     screens: {
-      auth: "auth",
+      login: {
+        path: "auth",
+        parse: {
+          token: String,
+        },
+      },
       "(tabs)": {
         screens: {
           index: "",
@@ -19,54 +24,70 @@ export const linking = {
 };
 
 export function useDeepLinkingHandler(
-  onAuthTokenReceived: (token: string) => void,
+  onAuthTokenReceived: (token: string) => Promise<void> | void,
 ) {
-  const navigationRef = useRef<any>(null);
-
   useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
+    let isMounted = true;
+
+    const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
       console.log("[DEEP_LINKING] Received deep link:", url);
 
-      if (!url) return;
+      if (!url || !isMounted) return;
 
-      // Parse the URL to extract the token
-      const parsedUrl = url.replace(/.*?:\/\//g, "");
-      const [path, query] = parsedUrl.split("?");
+      // Extract token from the URL
+      const token = extractTokenFromURL(url);
 
-      console.log("[DEEP_LINKING] Path:", path, "Query:", query);
-
-      if (path === "auth" && query) {
-        const params = new URLSearchParams(query);
-        const token = params.get("token");
-
-        if (token) {
-          console.log("[DEEP_LINKING] Extracted token:", token);
-          onAuthTokenReceived(token);
-        }
+      if (token) {
+        console.log("[DEEP_LINKING] Extracted token:", token);
+        // Give React time to settle before calling the callback
+        setTimeout(async () => {
+          if (isMounted) {
+            try {
+              await Promise.resolve(onAuthTokenReceived(token));
+              console.log("[DEEP_LINKING] Token processed successfully");
+            } catch (error) {
+              console.error("[DEEP_LINKING] Error processing token:", error);
+            }
+          }
+        }, 100);
+      } else {
+        console.warn("[DEEP_LINKING] No token found in URL:", url);
       }
     };
 
-    // Listen for deep link events
+    // Listen for deep link events when app is already running
     const subscription = Linking.addEventListener("url", handleDeepLink);
 
     // Check for initial URL (when app is launched from a deep link)
     const checkInitialURL = async () => {
-      const url = await Linking.getInitialURL();
-      if (url != null) {
-        console.log("[DEEP_LINKING] Initial URL:", url);
-        handleDeepLink({ url });
+      try {
+        const url = await Linking.getInitialURL();
+        if (url != null) {
+          console.log("[DEEP_LINKING] Initial URL on app launch:", url);
+          await handleDeepLink({ url });
+        } else {
+          console.log("[DEEP_LINKING] No initial URL found");
+        }
+      } catch (error) {
+        console.error("[DEEP_LINKING] Error checking initial URL:", error);
       }
     };
 
     checkInitialURL();
 
     return () => {
+      isMounted = false;
       subscription.remove();
     };
   }, [onAuthTokenReceived]);
+}
 
-  return navigationRef;
+/**
+ * Generate deep link URL for authentication
+ */
+export function generateAuthDeepLink(token: string): string {
+  return `rizon://auth?token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -74,11 +95,60 @@ export function useDeepLinkingHandler(
  */
 export function extractTokenFromURL(url: string): string | null {
   try {
-    const parsed = new URL(url.replace("rizon://", "http://localhost/"));
-    return parsed.searchParams.get("token");
-  } catch {
-    // Try manual parsing
-    const match = url.match(/token=([^&]+)/);
-    return match ? match[1] : null;
+    // Handle rizon:// scheme
+    if (url.includes("rizon://")) {
+      const urlObj = new URL(url.replace("rizon://", "http://localhost/"));
+      const token = urlObj.searchParams.get("token");
+      if (token) return token;
+    }
+
+    // Handle https:// scheme (for email links)
+    if (url.includes("https://")) {
+      const urlObj = new URL(url);
+      const token = urlObj.searchParams.get("token");
+      if (token) return token;
+    }
+
+    // Fallback: manual parsing for query string
+    const match = url.match(/token=([^&\s]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error parsing URL:", error);
+    return null;
+  }
+}
+
+/**
+ * Test deep link by opening it
+ * Useful for development and testing
+ */
+export async function testDeepLink(url: string): Promise<void> {
+  try {
+    console.log("[DEEP_LINKING] Testing deep link:", url);
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error opening URL:", error);
+  }
+}
+
+/**
+ * Simulate a deep link for testing (without opening URL)
+ * Useful when app scheme isn't registered yet
+ */
+export async function simulateDeepLink(
+  url: string,
+  handler: (token: string) => Promise<void> | void,
+): Promise<void> {
+  const token = extractTokenFromURL(url);
+  if (token) {
+    console.log("[DEEP_LINKING] Simulating deep link with token:", token);
+    try {
+      await Promise.resolve(handler(token));
+      console.log("[DEEP_LINKING] Token processed successfully");
+    } catch (error) {
+      console.error("[DEEP_LINKING] Error processing token:", error);
+    }
+  } else {
+    console.warn("[DEEP_LINKING] No token found in URL:", url);
   }
 }

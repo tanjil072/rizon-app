@@ -10,7 +10,7 @@ import {
   OnboardingProvider,
   useOnboarding,
 } from "@/contexts/onboarding.context";
-import { useDeepLinkingHandler } from "@/utils/deep-linking";
+import { linking, useDeepLinkingHandler } from "@/utils/deep-linking";
 import { ActivityIndicator, View } from "react-native";
 
 export const unstable_settings = {
@@ -76,7 +76,7 @@ function RootLayoutContent() {
 
   return (
     <>
-      <Stack>
+      <Stack linking={linking} fallback={<ActivityIndicator />}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>

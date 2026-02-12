@@ -113,6 +113,104 @@ No Session? → Navigate to Login
 7. User navigated to home screen
 8. Onboarding is triggered (first time only)
 
+## Deep Linking Configuration
+
+### URL Schemes Supported
+
+**Mobile (iOS/Android)**
+
+- Scheme: `rizon://`
+- Example: `rizon://auth?token=abc123xyz`
+
+**Web**
+
+- Prefix: `http://localhost:8081`
+- Example with token: `http://localhost:8081/auth?token=abc123xyz`
+
+**Universal Links (Production)**
+
+- Domain: `*.rizon.app`
+- Pattern: `https://app.rizon.app/auth?token=xxxxx`
+
+### Platform Configuration
+
+**iOS** (`app.json`)
+
+```json
+"ios": {
+  "associatedDomains": ["applinks:localhost:8080", "applinks:*.rizon.app"]
+}
+```
+
+**Android** (`app.json`)
+
+```json
+"android": {
+  "intentFilters": [
+    {
+      "action": "VIEW",
+      "data": [
+        {
+          "scheme": "https",
+          "host": "*.rizon.app",
+          "pathPattern": "/auth"
+        },
+        {
+          "scheme": "rizon"
+        }
+      ],
+      "category": ["BROWSABLE", "DEFAULT"]
+    }
+  ]
+}
+```
+
+### Deep Link Handler Flow
+
+```typescript
+// In app/_layout.tsx
+useDeepLinkingHandler(async (token: string) => {
+  1. Extract token from URL
+  2. Call verifyAuthLink(token)
+  3. On success:
+     - Store session token
+     - Trigger onboarding
+     - Navigate to home
+  4. On failure:
+     - Show error
+     - Redirect to login
+})
+```
+
+### Utility Functions
+
+**Generate Auth Deep Link**
+
+```typescript
+import { generateAuthDeepLink } from "@/utils/deep-linking";
+
+const deepLink = generateAuthDeepLink("token_value");
+// Result: 'rizon://auth?token=token_value'
+```
+
+**Extract Token from URL**
+
+```typescript
+import { extractTokenFromURL } from "@/utils/deep-linking";
+
+const token = extractTokenFromURL("rizon://auth?token=abc123");
+// Result: 'abc123'
+```
+
+**Test Deep Link**
+
+```typescript
+import { testDeepLink } from "@/utils/deep-linking";
+
+// Opens the deep link in the app
+await testDeepLink("rizon://auth?token=test123");
+```
+
 ### Step 4: Onboarding Flow
 
 1. `triggerOnboardingAfterLogin()` is called
