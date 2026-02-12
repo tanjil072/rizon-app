@@ -22,7 +22,7 @@ export const unstable_settings = {
  */
 function RootLayoutContent() {
   const { isAuthenticated, isLoading, verifyAuthLink } = useAuth();
-  const { triggerOnboardingAfterLogin, setOnboardingStatus } = useOnboarding();
+  const { triggerOnboardingAfterLogin } = useOnboarding();
   const router = useRouter();
   const segments = useSegments();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
@@ -53,31 +53,18 @@ function RootLayoutContent() {
       return;
     }
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const onLoginScreen = segments[0] === "login" || segments.length === 0;
-    console.log(
-      "[ROOT_LAYOUT] Auth state - isAuthenticated:",
-      isAuthenticated,
-      "Loading:",
-      isLoading,
-      "InAuthGroup:",
-      inAuthGroup,
-      "OnLoginScreen:",
-      onLoginScreen,
-      "Segments:",
-      segments,
-    );
+    const onLoginScreen = segments[0] === "login" || !segments.length;
 
     if (isLoading) {
       return;
     }
 
-    if (!isAuthenticated && !inAuthGroup && !onLoginScreen) {
+    if (!isAuthenticated && !onLoginScreen) {
       // Redirect to login only if not already there
       console.log("[ROOT_LAYOUT] Redirecting to login");
       router.replace("/login");
     }
-  }, [isAuthenticated, isLoading, segments, isNavigationReady]);
+  }, [isAuthenticated, isLoading, segments, isNavigationReady, router]);
 
   if (isLoading) {
     return (

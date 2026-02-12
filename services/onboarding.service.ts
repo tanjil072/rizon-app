@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080";
@@ -47,13 +48,27 @@ export const OnboardingService = {
    */
   async submitFeedback(payload: FeedbackPayload): Promise<boolean> {
     try {
-      // Get session token from storage
+      // Get session token from storage (try SecureStore first, then AsyncStorage)
       let sessionToken: string | null = null;
+
       try {
-        sessionToken = await AsyncStorage.getItem("sessionToken");
+        // Try secure store first (native iOS/Android)
+        sessionToken = await SecureStore.getItemAsync("sessionToken");
+        if (sessionToken) {
+          console.log("[ONBOARDING] Session token retrieved from secure store");
+        }
       } catch {
-        // Try secure store if available
-        sessionToken = null;
+        // Fallback to AsyncStorage for web/development
+        try {
+          sessionToken = await AsyncStorage.getItem("sessionToken");
+          if (sessionToken) {
+            console.log(
+              "[ONBOARDING] Session token retrieved from AsyncStorage",
+            );
+          }
+        } catch {
+          sessionToken = null;
+        }
       }
 
       if (!sessionToken) {
