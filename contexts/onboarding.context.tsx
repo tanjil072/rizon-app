@@ -2,7 +2,6 @@ import {
   OnboardingService,
   OnboardingStatus,
 } from "@/services/onboarding.service";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   ReactNode,
@@ -21,6 +20,7 @@ type OnboardingContextType = {
   >;
   checkOnboarding: () => Promise<void>;
   triggerOnboardingAfterLogin: () => void;
+  completeOnboarding: () => Promise<void>;
 };
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(
@@ -35,46 +35,86 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   const timeoutRef = useRef<number | null>(null);
   const hasInitializedRef = useRef(false);
 
+  /**
+   * Check onboarding status from backend
+   * Backend is the source of truth for whether user has completed onboarding
+   */
   const checkOnboarding = async () => {
     try {
+      console.log(
+        "[ONBOARDING_CONTEXT] Checking onboarding status from backend",
+      );
+
+      // Get status from backend (backend is source of truth)
       const status = await OnboardingService.checkOnboardingStatus();
+      console.log(
+        "[ONBOARDING_CONTEXT] Onboarding status from backend:",
+        status,
+      );
+
       setOnboardingStatus(status);
 
-      // Only show initial sheet if user is new AND hasn't seen onboarding
-      // AND the flag is explicitly set via triggerOnboardingAfterLogin
-      const hasSeenFlag = await AsyncStorage.getItem("onboardingTriggered");
+      // Show initial sheet ONLY if:
+      // 1. User is new (is_new_user = true)
+      // 2. User hasn't completed onboarding (onboarding_complete = false)
+      // These values come from backend after auth
       const shouldShowInitialSheet =
-        status.isNewUser && !status.hasSeenInitialOnboarding && hasSeenFlag;
+        status.isNewUser && !status.onboardingComplete;
+
+      console.log("[ONBOARDING_CONTEXT] Should show sheet?", {
+        isNewUser: status.isNewUser,
+        onboardingComplete: status.onboardingComplete,
+        shouldShow: shouldShowInitialSheet,
+      });
 
       if (shouldShowInitialSheet) {
-        // Clear the flag and show sheet
-        await AsyncStorage.removeItem("onboardingTriggered");
         timeoutRef.current = setTimeout(() => {
+          console.log("[ONBOARDING_CONTEXT] Showing initial onboarding sheet");
           setShowInitialSheet(true);
         }, 500);
       }
     } catch (error) {
-      console.error("Error checking onboarding:", error);
+      console.error("[ONBOARDING_CONTEXT] Error checking onboarding:", error);
     }
   };
 
+  /**
+   * Triggered after successful login to check and show onboarding
+   */
   const triggerOnboardingAfterLogin = async () => {
     try {
-      // Check if this is the first time user is logging in on this device
-      const hasCompletedOnboarding = await AsyncStorage.getItem(
-        "hasSeenInitialOnboarding",
+      console.log(
+        "[ONBOARDING_CONTEXT] Triggering onboarding flow after login",
       );
 
-      if (!hasCompletedOnboarding) {
-        // Mark that onboarding should be shown
-        await AsyncStorage.setItem("onboardingTriggered", "true");
-        // Trigger the check
-        setTimeout(() => {
-          checkOnboarding();
-        }, 300);
-      }
+      // Check onboarding status immediately after login
+      // The backend has just returned is_new_user and onboarding_complete
+      setTimeout(() => {
+        checkOnboarding();
+      }, 300);
     } catch (error) {
-      console.error("Error triggering onboarding:", error);
+      console.error("[ONBOARDING_CONTEXT] Error triggering onboarding:", error);
+    }
+  };
+
+  /**
+   * Mark onboarding as complete on backend
+   */
+  const completeOnboarding = async () => {
+    try {
+      console.log("[ONBOARDING_CONTEXT] Completing onboarding");
+      await OnboardingService.completeOnboarding();
+      await OnboardingService.markUserAsExisting();
+
+      // Update local state
+      setOnboardingStatus((prev) =>
+        prev ? { ...prev, onboardingComplete: true, isNewUser: false } : null,
+      );
+      setShowInitialSheet(false);
+
+      console.log("[ONBOARDING_CONTEXT] Onboarding completed");
+    } catch (error) {
+      console.error("[ONBOARDING_CONTEXT] Error completing onboarding:", error);
     }
   };
 
@@ -100,6 +140,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         setOnboardingStatus,
         checkOnboarding,
         triggerOnboardingAfterLogin,
+        completeOnboarding,
       }}
     >
       {children}

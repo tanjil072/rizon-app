@@ -42,7 +42,7 @@ export const OnboardingTestScreen = () => {
           <Text style={styles.statusText}>
             {onboardingStatus
               ? `isNewUser: ${onboardingStatus.isNewUser}\n` +
-                `hasSeenInitialOnboarding: ${onboardingStatus.hasSeenInitialOnboarding}\n`
+                `onboardingComplete: ${onboardingStatus.onboardingComplete}\n`
               : "No status loaded yet."}
           </Text>
         </View>

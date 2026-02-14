@@ -124,21 +124,82 @@ class AuthServiceImpl {
   }
 
   /**
+   * Get all authentication-related data from backend and storage
+   */
+  async getAllAuthData(): Promise<{
+    user: AuthUser | null;
+    sessionToken: string | null;
+    isNewUser: boolean | null;
+    hasSeenInitialOnboarding: boolean | null;
+    error?: string;
+  }> {
+    try {
+      const sessionToken = await this.getSessionToken();
+      let user: AuthUser | null = null;
+      let error: string | undefined = undefined;
+      if (sessionToken) {
+        user = await this.getUserFromSession(sessionToken);
+        if (!user) {
+          error = "Failed to fetch user from backend.";
+        }
+      }
+      const isNewUser = await this.getIsNewUserFlag();
+      let hasSeenInitialOnboarding: boolean | null = null;
+      try {
+        const onboardingFlag = await AsyncStorage.getItem(
+          "hasSeenInitialOnboarding",
+        );
+        if (onboardingFlag !== null) {
+          hasSeenInitialOnboarding = onboardingFlag === "true";
+        }
+      } catch (e) {
+        // ignore onboarding flag error
+      }
+      return {
+        user,
+        sessionToken,
+        isNewUser,
+        hasSeenInitialOnboarding,
+        ...(error ? { error } : {}),
+      };
+    } catch (e) {
+      return {
+        user: null,
+        sessionToken: null,
+        isNewUser: null,
+        hasSeenInitialOnboarding: null,
+        error: "Failed to get all auth data.",
+      };
+    }
+  }
+  /**
    * Save session token to secure storage
    */
   async saveSessionToken(token: string): Promise<void> {
     try {
-      // Try to save to secure store first (native)
+      console.log("[AUTH] Saving session token...");
+
+      // Primary: Save to AsyncStorage (most reliable for dev)
+      try {
+        await AsyncStorage.setItem("sessionToken", token);
+        console.log("[AUTH] ✅ Session token saved to AsyncStorage");
+      } catch (error) {
+        console.error("[AUTH] Failed to save to AsyncStorage:", error);
+        throw error;
+      }
+
+      // Secondary: also try SecureStore (for production)
       try {
         await SecureStore.setItemAsync("sessionToken", token);
-        console.log("[AUTH] Session token saved to secure store");
-      } catch {
-        // Fallback to AsyncStorage for web/development
-        await AsyncStorage.setItem("sessionToken", token);
-        console.log("[AUTH] Session token saved to AsyncStorage");
+        console.log("[AUTH] ✅ Session token also saved to SecureStore");
+      } catch (error) {
+        console.warn(
+          "[AUTH] SecureStore save failed (expected in dev), but AsyncStorage succeeded",
+        );
       }
     } catch (error) {
-      console.error("[AUTH] Error saving session token:", error);
+      console.error("[AUTH] Critical: Failed to save session token:", error);
+      throw error;
     }
   }
 
@@ -147,21 +208,29 @@ class AuthServiceImpl {
    */
   async getSessionToken(): Promise<string | null> {
     try {
-      // Try secure store first
-      try {
-        const token = await SecureStore.getItemAsync("sessionToken");
-        if (token) {
-          console.log("[AUTH] Session token retrieved from secure store");
-          return token;
-        }
-      } catch {
-        // Fallback to AsyncStorage
-        const token = await AsyncStorage.getItem("sessionToken");
-        if (token) {
-          console.log("[AUTH] Session token retrieved from AsyncStorage");
-          return token;
-        }
+      console.log("[AUTH] Attempting to retrieve session token...");
+
+      // Primary: try AsyncStorage (most reliable for dev)
+      const asyncToken = await AsyncStorage.getItem("sessionToken");
+      if (asyncToken) {
+        console.log("[AUTH] ✅ Session token retrieved from AsyncStorage");
+        return asyncToken;
       }
+
+      // Fallback: try SecureStore
+      try {
+        const secureToken = await SecureStore.getItemAsync("sessionToken");
+        if (secureToken) {
+          console.log("[AUTH] ✅ Session token retrieved from SecureStore");
+          // Copy to AsyncStorage for future reliability
+          await AsyncStorage.setItem("sessionToken", secureToken);
+          return secureToken;
+        }
+      } catch (e) {
+        console.log("[AUTH] SecureStore retrieval failed (expected in dev)");
+      }
+
+      console.log("[AUTH] ❌ No session token found in any storage");
       return null;
     } catch (error) {
       console.error("[AUTH] Error retrieving session token:", error);
@@ -174,16 +243,40 @@ class AuthServiceImpl {
    */
   async clearSession(): Promise<void> {
     try {
+      console.log("[AUTH] Clearing all session data...");
+
+      // Clear from both storages
+      try {
+        await AsyncStorage.removeItem("sessionToken");
+        console.log("[AUTH] Cleared sessionToken from AsyncStorage");
+      } catch (e) {
+        console.warn("[AUTH] Failed to clear from AsyncStorage:", e);
+      }
+
       try {
         await SecureStore.deleteItemAsync("sessionToken");
-      } catch {
-        await AsyncStorage.removeItem("sessionToken");
+        console.log("[AUTH] Cleared sessionToken from SecureStore");
+      } catch (e) {
+        console.warn("[AUTH] Failed to clear from SecureStore:", e);
       }
-      await AsyncStorage.removeItem("userData");
-      await AsyncStorage.removeItem("isNewUser");
-      await AsyncStorage.removeItem("hasSeenInitialOnboarding");
-      await AsyncStorage.removeItem("onboardingTriggered");
-      console.log("[AUTH] Session cleared");
+
+      // Clear all other auth data
+      const keysToRemove = [
+        "userData",
+        "isNewUser",
+        "hasSeenInitialOnboarding",
+        "onboardingTriggered",
+      ];
+
+      for (const key of keysToRemove) {
+        try {
+          await AsyncStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`[AUTH] Failed to clear ${key}:`, e);
+        }
+      }
+
+      console.log("[AUTH] ✅ Session fully cleared");
     } catch (error) {
       console.error("[AUTH] Error clearing session:", error);
     }

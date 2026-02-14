@@ -2,7 +2,6 @@ import { RizonButton } from "@/components/ui/rizon-button";
 import { RizonInput } from "@/components/ui/rizon-input";
 import { useOnboarding } from "@/contexts/onboarding.context";
 import { OnboardingService } from "@/services/onboarding.service";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { styles } from "./styles";
@@ -16,7 +15,7 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isSubmittingRef = useRef(false);
-  const { setOnboardingStatus } = useOnboarding();
+  const { completeOnboarding } = useOnboarding();
 
   const handleSendFeedback = async () => {
     // Prevent double submission
@@ -44,16 +43,8 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
       if (success) {
         console.log("[FEEDBACK] Feedback submitted successfully");
 
-        // Mark onboarding as completed
-        await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
-        await AsyncStorage.setItem("isNewUser", "false");
-        await AsyncStorage.removeItem("isNewLogin");
-
-        setOnboardingStatus({
-          isNewUser: false,
-          hasSeenInitialOnboarding: true,
-          onboardingCompletedAt: new Date().toISOString(),
-        });
+        // Mark onboarding as completed on backend
+        await completeOnboarding();
 
         // Clear feedback and close sheet after a short delay
         setFeedback("");

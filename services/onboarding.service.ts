@@ -2,13 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { AuthService } from "./auth.service";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080";
 
 export type OnboardingStatus = {
   isNewUser: boolean;
-  hasSeenInitialOnboarding: boolean;
-  onboardingCompletedAt?: string;
+  onboardingComplete: boolean;
 };
 
 export type FeedbackPayload = {
@@ -18,48 +18,151 @@ export type FeedbackPayload = {
 
 export const OnboardingService = {
   /**
-   * Check if the user has just completed initial onboarding
+   * Check onboarding status from backend
    */
   async checkOnboardingStatus(): Promise<OnboardingStatus> {
+    try {
+      // Get session token
+      const sessionToken = await AuthService.getSessionToken();
+      if (!sessionToken) {
+        console.log("[ONBOARDING] No session token, user not authenticated");
+        return {
+          isNewUser: false,
+          onboardingComplete: true,
+        };
+      }
+
+      // Fetch onboarding status from backend
+      const response = await fetch(`${API_BASE_URL}/api/onboarding/status`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.error(
+          "[ONBOARDING] Failed to fetch onboarding status:",
+          response.status,
+        );
+        // Fall back to local storage if backend fails
+        return await this.getLocalOnboardingStatus();
+      }
+
+      const data = await response.json();
+      console.log("[ONBOARDING] Backend onboarding status:", data);
+
+      return {
+        isNewUser: data.is_new_user || false,
+        onboardingComplete: data.onboarding_complete || false,
+      };
+    } catch (error) {
+      console.error("[ONBOARDING] Error checking status:", error);
+      // Fall back to local storage
+      return await this.getLocalOnboardingStatus();
+    }
+  },
+
+  /**
+   * Fallback to local storage if backend is unavailable
+   */
+  async getLocalOnboardingStatus(): Promise<OnboardingStatus> {
     try {
       const hasSeenOnboarding = await AsyncStorage.getItem(
         "hasSeenInitialOnboarding",
       );
-
-      // Check if we have the isNewUser flag from auth
-      let isNewUser = false;
-      try {
-        const isNewUserFlag = await AsyncStorage.getItem("isNewUser");
-        if (isNewUserFlag !== null) {
-          // Use the flag from auth verification (more reliable than checking AsyncStorage)
-          isNewUser = isNewUserFlag === "true";
-          console.log(
-            "[ONBOARDING] Using isNewUser from auth flag:",
-            isNewUser,
-          );
-        } else {
-          // Fall back to checking if hasSeenOnboarding is set
-          isNewUser = !hasSeenOnboarding;
-          console.log(
-            "[ONBOARDING] Fallback - isNewUser based on hasSeenOnboarding:",
-            isNewUser,
-          );
-        }
-      } catch (error) {
-        // If there's any error reading the flag, fall back to the old logic
-        isNewUser = !hasSeenOnboarding;
-      }
+      const isNewUserFlag = await AsyncStorage.getItem("isNewUser");
 
       return {
-        isNewUser,
-        hasSeenInitialOnboarding: !!hasSeenOnboarding,
+        isNewUser: isNewUserFlag === "true" && !hasSeenOnboarding,
+        onboardingComplete: !!hasSeenOnboarding,
       };
     } catch (error) {
-      console.error("[ONBOARDING] Error checking status:", error);
+      console.error("[ONBOARDING] Error checking local status:", error);
       return {
         isNewUser: false,
-        hasSeenInitialOnboarding: true,
+        onboardingComplete: true,
       };
+    }
+  },
+
+  /**
+   * Mark onboarding as complete on backend
+   */
+  async completeOnboarding(): Promise<boolean> {
+    try {
+      const sessionToken = await AuthService.getSessionToken();
+      if (!sessionToken) {
+        console.error("[ONBOARDING] No session token found");
+        return false;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/onboarding/complete`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.error(
+          "[ONBOARDING] Failed to mark onboarding complete:",
+          response.status,
+        );
+        // Still mark locally even if backend fails
+        await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+        return false;
+      }
+
+      // Also mark locally for offline support
+      await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+      console.log("[ONBOARDING] Onboarding marked as complete");
+      return true;
+    } catch (error) {
+      console.error("[ONBOARDING] Error completing onboarding:", error);
+      // Still mark locally
+      await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+      return false;
+    }
+  },
+
+  /**
+   * Mark user as no longer new (not a first-time user)
+   */
+  async markUserAsExisting(): Promise<boolean> {
+    try {
+      const sessionToken = await AuthService.getSessionToken();
+      if (!sessionToken) {
+        console.error("[ONBOARDING] No session token found");
+        return false;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/onboarding/mark-existing-user`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        console.error(
+          "[ONBOARDING] Failed to mark user as existing:",
+          response.status,
+        );
+        return false;
+      }
+
+      console.log("[ONBOARDING] User marked as existing");
+      return true;
+    } catch (error) {
+      console.error("[ONBOARDING] Error marking user as existing:", error);
+      return false;
     }
   },
 

@@ -41,31 +41,85 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkAuthStatus = async () => {
     try {
       const token = await AuthService.getSessionToken();
+      console.log("[AUTH_CONTEXT] Checking auth status, token found:", !!token);
+
       if (token) {
-        console.log("[AUTH_CONTEXT] Found session token, fetching user...");
-        // Try to fetch user data from backend
-        let user = await AuthService.getUserFromSession(token);
+        console.log(
+          "[AUTH_CONTEXT] Found session token, verifying with backend...",
+        );
+        try {
+          // Try to fetch user data from backend
+          let user = await AuthService.getUserFromSession(token);
 
-        // If backend fetch fails, try to use cached user data
-        if (!user) {
+          if (user) {
+            console.log(
+              "[AUTH_CONTEXT] User data retrieved from backend:",
+              user.email,
+            );
+            setAuthState((prev) => ({
+              ...prev,
+              user,
+              sessionToken: token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            }));
+            return;
+          }
+
+          // Backend fetch failed, try cached user data
           console.log(
-            "[AUTH_CONTEXT] Backend fetch failed, trying cached user data",
+            "[AUTH_CONTEXT] Backend fetch failed, attempting to use cached user data",
           );
-          user = await AuthService.getUserData();
-        }
+          const cachedUser = await AuthService.getUserData();
+          if (cachedUser) {
+            console.log(
+              "[AUTH_CONTEXT] Using cached user data:",
+              cachedUser.email,
+            );
+            setAuthState((prev) => ({
+              ...prev,
+              user: cachedUser,
+              sessionToken: token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            }));
+            return;
+          }
 
-        setAuthState((prev) => ({
-          ...prev,
-          user: user || null,
-          sessionToken: token,
-          isAuthenticated: true,
-          isLoading: false,
-        }));
+          // No user data available
+          console.warn("[AUTH_CONTEXT] No user data found, clearing session");
+          await AuthService.clearSession();
+          setAuthState((prev) => ({
+            ...prev,
+            isAuthenticated: false,
+            isLoading: false,
+            sessionToken: null,
+            user: null,
+          }));
+        } catch (error) {
+          console.error("[AUTH_CONTEXT] Error verifying token:", error);
+          // On error, clear the invalid session
+          await AuthService.clearSession();
+          setAuthState((prev) => ({
+            ...prev,
+            isAuthenticated: false,
+            isLoading: false,
+            sessionToken: null,
+            user: null,
+          }));
+        }
       } else {
+        console.log(
+          "[AUTH_CONTEXT] No session token found, user not authenticated",
+        );
         setAuthState((prev) => ({
           ...prev,
           isAuthenticated: false,
           isLoading: false,
+          sessionToken: null,
+          user: null,
         }));
       }
     } catch (error) {
@@ -73,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthState((prev) => ({
         ...prev,
         isLoading: false,
+        isAuthenticated: false,
         error: "Failed to check authentication status",
       }));
     }
@@ -81,7 +136,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!initializationRef.current) {
       initializationRef.current = true;
-      checkAuthStatus();
+      // Delay to ensure storage is ready and initialized
+      // This allows any pending deep link handlers to complete first
+      const timer = setTimeout(() => {
+        console.log(
+          "[AUTH_CONTEXT] ⏱️ Starting auth status check after delay...",
+        );
+        checkAuthStatus();
+      }, 500); // Increased from 100ms to give more time
+
+      return () => clearTimeout(timer);
     }
   }, []);
 
