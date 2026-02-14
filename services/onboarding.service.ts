@@ -225,18 +225,6 @@ export const OnboardingService = {
   },
 
   /**
-   * Mark that user has seen the initial onboarding sheet
-   */
-  async markOnboardingSheetSeen() {
-    try {
-      // simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    } catch (error) {
-      console.debug("Development: Could not mark onboarding sheet as seen");
-    }
-  },
-
-  /**
    * Open app store for review based on platform
    */
   openAppStore(): void {
