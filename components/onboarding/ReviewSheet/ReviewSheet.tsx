@@ -12,9 +12,11 @@ type ReviewSheetProps = {
 
 export const ReviewSheet = ({ onClose }: ReviewSheetProps) => {
   const { setOnboardingStatus } = useOnboarding();
-  const handleLeaveReview = () => {
+  const handleLeaveReview = async () => {
     OnboardingService.openAppStore();
-    setTimeout(() => {
+    setTimeout(async () => {
+      await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+      await AsyncStorage.setItem("isNewUser", "false");
       onClose();
       setOnboardingStatus({
         isNewUser: false,

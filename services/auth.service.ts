@@ -181,6 +181,8 @@ class AuthServiceImpl {
       }
       await AsyncStorage.removeItem("userData");
       await AsyncStorage.removeItem("isNewUser");
+      await AsyncStorage.removeItem("hasSeenInitialOnboarding");
+      await AsyncStorage.removeItem("onboardingTriggered");
       console.log("[AUTH] Session cleared");
     } catch (error) {
       console.error("[AUTH] Error clearing session:", error);

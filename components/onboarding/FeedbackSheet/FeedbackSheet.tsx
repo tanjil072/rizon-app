@@ -46,6 +46,7 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
 
         // Mark onboarding as completed
         await AsyncStorage.setItem("hasSeenInitialOnboarding", "true");
+        await AsyncStorage.setItem("isNewUser", "false");
         await AsyncStorage.removeItem("isNewLogin");
 
         setOnboardingStatus({
