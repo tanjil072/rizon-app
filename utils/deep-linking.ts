@@ -1,8 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
 const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
+const PROCESSED_TOKENS_KEY = "@rizon/processed_auth_tokens";
 
 // Simple linking config - just prevent "unmatched route" errors
 // The useDeepLinkingHandler does all the real work
@@ -20,11 +22,43 @@ export const linking = {
   },
 };
 
+async function isTokenProcessed(token: string): Promise<boolean> {
+  try {
+    const processedTokens = await AsyncStorage.getItem(PROCESSED_TOKENS_KEY);
+    const tokens = processedTokens ? JSON.parse(processedTokens) : [];
+    return tokens.includes(token);
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error checking processed tokens:", error);
+    return false;
+  }
+}
+
+async function markTokenAsProcessed(token: string): Promise<void> {
+  try {
+    const processedTokens = await AsyncStorage.getItem(PROCESSED_TOKENS_KEY);
+    const tokens = processedTokens ? JSON.parse(processedTokens) : [];
+    if (!tokens.includes(token)) {
+      tokens.push(token);
+      // Keep only last 50 tokens
+      const recentTokens = tokens.slice(-50);
+      await AsyncStorage.setItem(
+        PROCESSED_TOKENS_KEY,
+        JSON.stringify(recentTokens),
+      );
+      console.log(
+        "[DEEP_LINKING] Marked token as processed:",
+        token.substring(0, 8) + "...",
+      );
+    }
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error marking token as processed:", error);
+  }
+}
+
 export function useDeepLinkingHandler(
   onAuthTokenReceived: (token: string) => Promise<void> | void,
 ) {
   const hasProcessedInitialUrl = useRef(false);
-  const processedTokens = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let isMounted = true;
@@ -40,35 +74,30 @@ export function useDeepLinkingHandler(
 
       if (token) {
         // Check if we've already processed this token
-        if (processedTokens.current.has(token)) {
+        const alreadyProcessed = await isTokenProcessed(token);
+        if (alreadyProcessed) {
           console.log(
             "[DEEP_LINKING] Token already processed, skipping:",
-            token,
+            token.substring(0, 8) + "...",
           );
           return;
         }
 
-        console.log("[DEEP_LINKING] Extracted token:", token);
+        console.log(
+          "[DEEP_LINKING] Extracted token:",
+          token.substring(0, 8) + "...",
+        );
         console.log("[DEEP_LINKING] Calling auth callback immediately...");
 
-        // Mark token as being processed
-        processedTokens.current.add(token);
-
-        // Call callback immediately without setTimeout to avoid unmounting issues
+        // Call callback immediately
         try {
-          Promise.resolve(onAuthTokenReceived(token))
-            .then(() => {
-              console.log("[DEEP_LINKING] Token processed successfully");
-            })
-            .catch((error) => {
-              console.error("[DEEP_LINKING] Error processing token:", error);
-              // Remove from processed set on error so it can be retried
-              processedTokens.current.delete(token);
-            });
+          await Promise.resolve(onAuthTokenReceived(token));
+          console.log("[DEEP_LINKING] Token processed successfully");
+          // Mark as processed after successful verification
+          await markTokenAsProcessed(token);
         } catch (error) {
-          console.error("[DEEP_LINKING] Error calling callback:", error);
-          // Remove from processed set on error so it can be retried
-          processedTokens.current.delete(token);
+          console.error("[DEEP_LINKING] Error processing token:", error);
+          // Don't mark as processed on error - allow retry
         }
       } else {
         console.warn("[DEEP_LINKING] No token found in URL:", url);
@@ -86,19 +115,18 @@ export function useDeepLinkingHandler(
         return;
       }
 
+      hasProcessedInitialUrl.current = true;
+
       try {
         const url = await Linking.getInitialURL();
         if (url != null) {
           console.log("[DEEP_LINKING] Initial URL on app launch:", url);
-          hasProcessedInitialUrl.current = true;
           await handleDeepLink({ url });
         } else {
           console.log("[DEEP_LINKING] No initial URL found");
-          hasProcessedInitialUrl.current = true;
         }
       } catch (error) {
         console.error("[DEEP_LINKING] Error checking initial URL:", error);
-        hasProcessedInitialUrl.current = true;
       }
     };
 
