@@ -28,7 +28,17 @@ function RootLayoutContent() {
   const [isNavigationReady, setIsNavigationReady] = useState(false);
 
   // Handle deep links with auth tokens
-  useDeepLinkingHandler(async (token: string) => {
+  useDeepLinkingHandler(async (token: string | null) => {
+    if (!token) {
+      // No token found in deep link, show login
+      router.replace("/login");
+      return;
+    }
+    if (token === "ALREADY_PROCESSED") {
+      // Token was already processed, show login and clear loading
+      router.replace("/login");
+      return;
+    }
     console.log("[ROOT_LAYOUT] Processing auth token:", token);
     try {
       const success = await verifyAuthLink(token);

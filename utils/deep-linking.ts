@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
@@ -56,9 +56,23 @@ async function markTokenAsProcessed(token: string): Promise<void> {
 }
 
 export function useDeepLinkingHandler(
-  onAuthTokenReceived: (token: string) => Promise<void> | void,
+  onAuthTokenReceived: (token: string | null) => Promise<void> | void,
 ) {
-  const hasProcessedInitialUrl = useRef(false);
+  // Persist across remounts to avoid repeated initial URL handling
+  const globalHasProcessedInitialUrl = (() => {
+    if (typeof window !== "undefined") {
+      if (!(window as any).__rizonHasProcessedInitialUrl) {
+        (window as any).__rizonHasProcessedInitialUrl = { value: false };
+      }
+      return (window as any).__rizonHasProcessedInitialUrl;
+    } else {
+      // For native, use a module-level variable
+      if (!(global as any).__rizonHasProcessedInitialUrl) {
+        (global as any).__rizonHasProcessedInitialUrl = { value: false };
+      }
+      return (global as any).__rizonHasProcessedInitialUrl;
+    }
+  })();
 
   useEffect(() => {
     let isMounted = true;
@@ -67,7 +81,10 @@ export function useDeepLinkingHandler(
       const url = event.url;
       console.log("[DEEP_LINKING] Received deep link:", url);
 
-      if (!url || !isMounted) return;
+      if (!url || !isMounted) {
+        await Promise.resolve(onAuthTokenReceived(null));
+        return;
+      }
 
       // Extract token from the URL
       const token = extractTokenFromURL(url);
@@ -80,6 +97,7 @@ export function useDeepLinkingHandler(
             "[DEEP_LINKING] Token already processed, skipping:",
             token.substring(0, 8) + "...",
           );
+          await Promise.resolve(onAuthTokenReceived("ALREADY_PROCESSED"));
           return;
         }
 
@@ -101,6 +119,7 @@ export function useDeepLinkingHandler(
         }
       } else {
         console.warn("[DEEP_LINKING] No token found in URL:", url);
+        await Promise.resolve(onAuthTokenReceived(null));
       }
     };
 
@@ -110,12 +129,12 @@ export function useDeepLinkingHandler(
     // Check for initial URL (when app is launched from a deep link)
     // Only do this once to prevent infinite loops
     const checkInitialURL = async () => {
-      if (hasProcessedInitialUrl.current) {
+      if (globalHasProcessedInitialUrl.value) {
         console.log("[DEEP_LINKING] Initial URL already processed, skipping");
         return;
       }
 
-      hasProcessedInitialUrl.current = true;
+      globalHasProcessedInitialUrl.value = true;
 
       try {
         const url = await Linking.getInitialURL();
