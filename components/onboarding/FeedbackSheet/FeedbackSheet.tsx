@@ -15,37 +15,54 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isSubmittingRef = useRef(false);
-  const { setOnboardingStatus } = useOnboarding();
+  const { completeOnboarding } = useOnboarding();
 
   const handleSendFeedback = async () => {
-    if (isSubmittingRef.current) return;
+    // Prevent double submission
+    if (isSubmittingRef.current) {
+      console.log("[FEEDBACK] Submission already in progress");
+      return;
+    }
+
     if (!feedback.trim()) {
       setError("Please enter your feedback");
       return;
     }
+
     setError("");
     setLoading(true);
     isSubmittingRef.current = true;
+
     try {
+      console.log("[FEEDBACK] Submitting feedback...");
+
       const success = await OnboardingService.submitFeedback({
         feedback: feedback.trim(),
       });
+
       if (success) {
-        setOnboardingStatus({
-          isNewUser: false,
-          hasSeenInitialOnboarding: true,
-          onboardingCompletedAt: new Date().toISOString(),
-        });
+        console.log("[FEEDBACK] Feedback submitted successfully");
+
+        // Mark onboarding as completed on backend
+        await completeOnboarding();
+
+        // Clear feedback and close sheet after a short delay
         setFeedback("");
         setLoading(false);
         isSubmittingRef.current = false;
-        onClose();
+
+        // Wait a bit before closing to show success
+        setTimeout(() => {
+          onClose();
+        }, 300);
       } else {
+        console.error("[FEEDBACK] Feedback submission failed");
         setError("Failed to send feedback. Please try again.");
         setLoading(false);
         isSubmittingRef.current = false;
       }
     } catch (error) {
+      console.error("[FEEDBACK] Error:", error);
       setError("An error occurred. Please try again.");
       setLoading(false);
       isSubmittingRef.current = false;
@@ -75,7 +92,7 @@ export const FeedbackSheet = ({ onClose }: FeedbackSheetProps) => {
         />
       </View>
       <RizonButton
-        title="Send feedback"
+        title={loading ? "Sending..." : "Send feedback"}
         onPress={handleSendFeedback}
         variant="primary"
         loading={loading}

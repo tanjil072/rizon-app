@@ -1,0 +1,229 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
+import { useEffect } from "react";
+import { Platform } from "react-native";
+
+const prefix = Platform.OS === "web" ? "http://localhost:8081" : "rizon://";
+const PROCESSED_TOKENS_KEY = "@rizon/processed_auth_tokens";
+
+// Simple linking config - just prevent "unmatched route" errors
+// The useDeepLinkingHandler does all the real work
+export const linking = {
+  prefixes: ["rizon://", "https://app.rizon.app"],
+  config: {
+    screens: {
+      login: "*", // Match any unmatched path to login screen
+      "(tabs)": {
+        screens: {
+          index: "",
+        },
+      },
+    },
+  },
+};
+
+async function isTokenProcessed(token: string): Promise<boolean> {
+  try {
+    const processedTokens = await AsyncStorage.getItem(PROCESSED_TOKENS_KEY);
+    const tokens = processedTokens ? JSON.parse(processedTokens) : [];
+    return tokens.includes(token);
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error checking processed tokens:", error);
+    return false;
+  }
+}
+
+async function markTokenAsProcessed(token: string): Promise<void> {
+  try {
+    const processedTokens = await AsyncStorage.getItem(PROCESSED_TOKENS_KEY);
+    const tokens = processedTokens ? JSON.parse(processedTokens) : [];
+    if (!tokens.includes(token)) {
+      tokens.push(token);
+      // Keep only last 50 tokens
+      const recentTokens = tokens.slice(-50);
+      await AsyncStorage.setItem(
+        PROCESSED_TOKENS_KEY,
+        JSON.stringify(recentTokens),
+      );
+      console.log(
+        "[DEEP_LINKING] Marked token as processed:",
+        token.substring(0, 8) + "...",
+      );
+    }
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error marking token as processed:", error);
+  }
+}
+
+export function useDeepLinkingHandler(
+  onAuthTokenReceived: (token: string | null) => Promise<void> | void,
+) {
+  // Persist across remounts to avoid repeated initial URL handling
+  const globalHasProcessedInitialUrl = (() => {
+    if (typeof window !== "undefined") {
+      if (!(window as any).__rizonHasProcessedInitialUrl) {
+        (window as any).__rizonHasProcessedInitialUrl = { value: false };
+      }
+      return (window as any).__rizonHasProcessedInitialUrl;
+    } else {
+      // For native, use a module-level variable
+      if (!(global as any).__rizonHasProcessedInitialUrl) {
+        (global as any).__rizonHasProcessedInitialUrl = { value: false };
+      }
+      return (global as any).__rizonHasProcessedInitialUrl;
+    }
+  })();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log("[DEEP_LINKING] Received deep link:", url);
+
+      if (!url || !isMounted) {
+        await Promise.resolve(onAuthTokenReceived(null));
+        return;
+      }
+
+      // Extract token from the URL
+      const token = extractTokenFromURL(url);
+
+      if (token) {
+        // Check if we've already processed this token
+        const alreadyProcessed = await isTokenProcessed(token);
+        if (alreadyProcessed) {
+          console.log(
+            "[DEEP_LINKING] Token already processed, skipping:",
+            token.substring(0, 8) + "...",
+          );
+          await Promise.resolve(onAuthTokenReceived("ALREADY_PROCESSED"));
+          return;
+        }
+
+        console.log(
+          "[DEEP_LINKING] Extracted token:",
+          token.substring(0, 8) + "...",
+        );
+        console.log("[DEEP_LINKING] Calling auth callback immediately...");
+
+        // Call callback immediately
+        try {
+          await Promise.resolve(onAuthTokenReceived(token));
+          console.log("[DEEP_LINKING] Token processed successfully");
+          // Mark as processed after successful verification
+          await markTokenAsProcessed(token);
+        } catch (error) {
+          console.error("[DEEP_LINKING] Error processing token:", error);
+          // Don't mark as processed on error - allow retry
+        }
+      } else {
+        console.warn("[DEEP_LINKING] No token found in URL:", url);
+        await Promise.resolve(onAuthTokenReceived(null));
+      }
+    };
+
+    // Listen for deep link events when app is already running
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+
+    // Check for initial URL (when app is launched from a deep link)
+    // Only do this once to prevent infinite loops
+    const checkInitialURL = async () => {
+      if (globalHasProcessedInitialUrl.value) {
+        console.log("[DEEP_LINKING] Initial URL already processed, skipping");
+        return;
+      }
+
+      globalHasProcessedInitialUrl.value = true;
+
+      try {
+        const url = await Linking.getInitialURL();
+        if (url != null) {
+          console.log("[DEEP_LINKING] Initial URL on app launch:", url);
+          await handleDeepLink({ url });
+        } else {
+          console.log("[DEEP_LINKING] No initial URL found");
+        }
+      } catch (error) {
+        console.error("[DEEP_LINKING] Error checking initial URL:", error);
+      }
+    };
+
+    checkInitialURL();
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [onAuthTokenReceived]);
+}
+
+/**
+ * Generate deep link URL for authentication
+ */
+export function generateAuthDeepLink(token: string): string {
+  return `rizon://auth?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Extract authentication token from deep link
+ */
+export function extractTokenFromURL(url: string): string | null {
+  try {
+    // Handle rizon:// scheme
+    if (url.includes("rizon://")) {
+      const urlObj = new URL(url.replace("rizon://", "http://localhost/"));
+      const token = urlObj.searchParams.get("token");
+      if (token) return token;
+    }
+
+    // Handle https:// scheme (for email links)
+    if (url.includes("https://")) {
+      const urlObj = new URL(url);
+      const token = urlObj.searchParams.get("token");
+      if (token) return token;
+    }
+
+    // Fallback: manual parsing for query string
+    const match = url.match(/token=([^&\s]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error parsing URL:", error);
+    return null;
+  }
+}
+
+/**
+ * Test deep link by opening it
+ * Useful for development and testing
+ */
+export async function testDeepLink(url: string): Promise<void> {
+  try {
+    console.log("[DEEP_LINKING] Testing deep link:", url);
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error("[DEEP_LINKING] Error opening URL:", error);
+  }
+}
+
+/**
+ * Simulate a deep link for testing (without opening URL)
+ * Useful when app scheme isn't registered yet
+ */
+export async function simulateDeepLink(
+  url: string,
+  handler: (token: string) => Promise<void> | void,
+): Promise<void> {
+  const token = extractTokenFromURL(url);
+  if (token) {
+    console.log("[DEEP_LINKING] Simulating deep link with token:", token);
+    try {
+      await Promise.resolve(handler(token));
+      console.log("[DEEP_LINKING] Token processed successfully");
+    } catch (error) {
+      console.error("[DEEP_LINKING] Error processing token:", error);
+    }
+  } else {
+    console.warn("[DEEP_LINKING] No token found in URL:", url);
+  }
+}

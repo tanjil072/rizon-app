@@ -12,11 +12,16 @@ export const InitialOnboardingSheet = () => {
 
   React.useEffect(() => {
     if (showInitialSheet) {
-      OnboardingService.markOnboardingSheetSeen();
+      OnboardingService.completeOnboarding();
+      // Mark user as existing in backend
+      OnboardingService.markUserAsExisting();
     }
   }, [showInitialSheet]);
 
   const handleClose = () => {
+    OnboardingService.completeOnboarding();
+    OnboardingService.markUserAsExisting();
+
     setShowInitialSheet(false);
     setSheetState(0);
   };

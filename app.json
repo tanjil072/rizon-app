@@ -1,23 +1,42 @@
 {
   "expo": {
-    "name": "",
+    "name": "Rizon",
     "slug": "rizon-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/rizon.svg",
-    "scheme": "rizonapp",
+    "scheme": "rizon",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rizon.app",
+      "associatedDomains": ["applinks:localhost:8080", "applinks:*.rizon.app"]
     },
     "android": {
+      "package": "com.rizon.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFFF13",
         "foregroundImage": "./assets/images/rizon_logo.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.rizon.app",
+              "pathPattern": "/auth"
+            },
+            {
+              "scheme": "rizon"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
